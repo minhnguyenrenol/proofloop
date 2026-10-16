@@ -96,7 +96,7 @@ test('guard expands wildcards that hide the folder name', () => {
     fs.mkdirSync(path.join(app, 'src', 'consent'), { recursive: true });
     fs.mkdirSync(path.join(app, 'src', 'sessions'), { recursive: true });
     fs.writeFileSync(path.join(app, 'src', 'consent', 'en.json'), '{}');
-    for (const cmd of ['git add src/*', 'grep -rn sessions src/', 'git commit -m "fix consent banner"', 'git add src/sessions', 'cd src/sessions && npm test', 'cat src/consent/en.json']) assert.equal(run('Bash', { command: cmd }, app), 0, cmd);
+    for (const cmd of ['git add src/*', 'grep -rn sessions src/', 'grep -n "function consent\\|meta.json" src/a.js', 'git commit -m "fix consent banner"', 'git add src/sessions', 'cd src/sessions && npm test', 'cat src/consent/en.json']) assert.equal(run('Bash', { command: cmd }, app), 0, cmd);
     assert.equal(run('Grep', { pattern: 'x', path: 'src/sessions' }, app), 0);
 
     // Bypasses closed: a newline starts a second command; file -f reads names out of a file; cd chains.

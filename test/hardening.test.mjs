@@ -169,6 +169,28 @@ test('relay import: one malformed participant does not block the others', async 
   assert.ok(fs.existsSync(path.join(research, 'relay-bad', 'consent', 'P2.json')));
 });
 
+test('robustness: CSV blank times and odd ids, quoted study names, errors that say what to do', async () => {
+  const name = 'Q3: savings #2 $& "plan"';
+  await call('study_create', { slug: 'csv-odd', name, mode: 'unmoderated' });
+  assert.equal((await call('study_validate', { slug: 'csv-odd' })).valid, true, 'name with : # $& and quotes stays valid YAML');
+  assert.match(fs.readFileSync(path.join(research, 'csv-odd', 'study.yaml'), 'utf8'), /name: "Q3: savings #2 \$& \\"plan\\""/);
+
+  const csv = path.join(tmp, 'odd.csv');
+  fs.writeFileSync(csv, ['Tester,Task 1 result,Task 1 time', '__proto__,Success,30', 'bob,Success,', 'carol,Success,abc'].join('\n') + '\n');
+  const r = await call('results_import', { slug: 'csv-odd', csv_path: csv, participant_column: 'Tester', tasks: [{ task_id: 't1', outcome_column: 'Task 1 result', time_column: 'Task 1 time' }], consent_confirmed: true, consent_version: 'tool terms v1' });
+  assert.deepEqual(r.imported.map((x) => x.participant), ['P1', 'P2', 'P3'], '__proto__ is just an id');
+  const end = (p) => JSON.parse(fs.readFileSync(path.join(research, 'csv-odd', 'sessions', p, 'events.json'), 'utf8')).events.find((e) => e.type === 'task_end');
+  assert.equal(end('P2').no_time, true, 'a blank time is no time, not 0 s');
+  assert.equal(end('P1').t_ms - 0, 30000);
+  assert.match(r.warnings.join('\n'), /P3.*not a number of seconds/);
+  assert.ok(!/P2.*not a number/.test(r.warnings.join('\n')), 'a blank cell is not a warning');
+
+  await assert.rejects(call('observations_submit', { slug: 'csv-odd', participant: 'P1', model: 'claude-opus-5-5', observations: [] }), /session_prepare/);
+  fs.mkdirSync(path.join(research, 'csv-odd', 'affinity'), { recursive: true });
+  fs.writeFileSync(path.join(research, 'csv-odd', 'affinity', 'board.json'), '{"notes": [');
+  await assert.rejects(call('board_summary', { slug: 'csv-odd' }), /board\.json is damaged/);
+});
+
 test('privacy: free-text survey answers are redacted before analysis', async () => {
   await call('study_create', { slug: 'answers-redact', name: 'Answers redaction', mode: 'moderated' });
   await call('consent_record', { slug: 'answers-redact', participant: 'P1', method: 'written', consent_version: '1.0', recorded_by: 'Test Researcher', name: 'Priya Sharma' });

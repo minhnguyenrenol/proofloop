@@ -54,6 +54,8 @@ export function importResultsCsv({ root, slug, study, csvPath, participantColumn
 
   const idsFile = path.join(studyDir(root, slug), 'consent', 'external-ids.json');
   const ids = readJson(idsFile, { source: 'csv', map: {} });
+  // The tool's ids are arbitrary text ("__proto__", "constructor"): keep them in a plain map.
+  ids.map = Object.assign(Object.create(null), ids.map);
   let next = Math.max(0, ...listSessions(root, slug).map((p) => Number(p.slice(1))), ...Object.values(ids.map).map((p) => Number(p.slice(1)))) + 1;
   const report = { rows: rows.length, imported: [], skipped: [], warnings: [], note: 'Task success is the testing tool\'s own result, taken as given. Imported sessions have no click data, so behaviour notes need the video or transcript.' };
   const success = (t) => new Set((t.success_values ?? SUCCESS).map(norm));
@@ -77,9 +79,11 @@ export function importResultsCsv({ root, slug, study, csvPath, participantColumn
       if (!raw) continue;
       const ok = success(t).has(raw); const bad = failure(t).has(raw);
       if (!ok && !bad) { report.warnings.push(`Row ${line} (${p}): outcome for ${t.task_id} isn't a known success or failure value, so that task is left out. Pass success_values or failure_values to map it.`); continue; }
-      const secs = t.time_column ? Number(row[t.time_column].replace(',', '.')) : NaN;
+      // A blank cell is "no time", not 0 seconds (Number('') is 0).
+      const cell = t.time_column ? String(row[t.time_column] ?? '').trim() : '';
+      const secs = cell ? Number(cell.replace(',', '.')) : NaN;
       const dur = Number.isFinite(secs) && secs >= 0 ? Math.round(secs * 1000) : null;
-      if (t.time_column && dur === null && row[t.time_column]) report.warnings.push(`Row ${line} (${p}): time for ${t.task_id} is not a number of seconds, so no time is recorded.`);
+      if (dur === null && cell) report.warnings.push(`Row ${line} (${p}): time for ${t.task_id} is not a number of seconds, so no time is recorded.`);
       const id = () => `e${String(++seq).padStart(5, '0')}`;
       events.push({ id: id(), t_ms: t0, type: 'task_start', task_id: t.task_id });
       const end = { id: id(), t_ms: t0 + (dur ?? 0), type: 'task_end', task_id: t.task_id, outcome: ok ? 'completed' : 'gave_up', reached: ok, source: 'csv' };

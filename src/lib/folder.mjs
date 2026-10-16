@@ -53,7 +53,9 @@ export function readJson(f, fallback) {
     if (fallback !== undefined) return fallback;
     throw new Error(`Missing file: ${f}`);
   }
-  return JSON.parse(fs.readFileSync(f, 'utf8'));
+  const text = fs.readFileSync(f, 'utf8');
+  // Name the file, so a damaged one can be found and fixed.
+  try { return JSON.parse(text); } catch (e) { throw new Error(`${f} is damaged (not valid JSON: ${e.message}). Restore it from a backup (or its .bak copy, if there is one), or remove it and redo that step.`); }
 }
 
 export function writeJson(f, data) {

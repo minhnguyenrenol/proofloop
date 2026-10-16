@@ -30,7 +30,7 @@ import { mdToHtml, esc } from './lib/markdown.mjs';
 import { REDACTION_VERSION } from './lib/redact.mjs';
 import { TEMPLATES } from './lib/templates.mjs';
 
-const VERSION = '0.2.3';
+const VERSION = '0.2.4';
 const server = new McpServer({ name: 'proofloop', version: VERSION });
 
 // ---------- helpers ----------
@@ -184,12 +184,14 @@ tool('study_create', 'Create a study folder from templates: study.yaml, guide.md
   const cfg = loadConfig(r);
   const d = studyDir(r, slug);
   if (fs.existsSync(path.join(d, 'study.yaml'))) throw new Error(`Study ${slug} already exists`);
-  const study = TEMPLATES.study.replace(/__NAME__/g, name).replace(/__SLUG__/g, slug).replace(/__MODE__/g, mode)
-    .replace(/__LOCATION__/g, cfg.location).replace(/__PATH__/g, r).replace(/__RELAY__/g, cfg.relay_url ? `\n  relay:\n    url: ${cfg.relay_url}` : '')
-    .replace(/__ACCOUNT__/g, cfg.model_account ? `\n    account: ${cfg.model_account}` : '');
+  // Values go in as quoted YAML strings (JSON is valid YAML), and through a
+  // function so "$&" in a name isn't treated as a replacement pattern.
+  const q = (v) => JSON.stringify(String(v));
+  const fill = (tpl, vals) => tpl.replace(/__([A-Z]+)__/g, (m, k) => (k in vals ? vals[k] : m));
+  const study = fill(TEMPLATES.study, { NAME: q(name), SLUG: slug, MODE: mode, LOCATION: cfg.location, PATH: q(r), RELAY: cfg.relay_url ? `\n  relay:\n    url: ${q(cfg.relay_url)}` : '', ACCOUNT: cfg.model_account ? `\n    account: ${cfg.model_account}` : '' });
   writeText(path.join(d, 'study.yaml'), study);
-  writeText(path.join(d, 'consent', 'consent.md'), TEMPLATES.consent.replace(/__NAME__/g, name));
-  if (mode === 'moderated') writeText(path.join(d, 'guide.md'), TEMPLATES.guide.replace(/__NAME__/g, name));
+  writeText(path.join(d, 'consent', 'consent.md'), fill(TEMPLATES.consent, { NAME: name }));
+  if (mode === 'moderated') writeText(path.join(d, 'guide.md'), fill(TEMPLATES.guide, { NAME: name }));
   fs.mkdirSync(path.join(d, 'context', 'sources'), { recursive: true });
   let ctxNote = 'empty template';
   if (from_study) {
@@ -350,6 +352,7 @@ tool('observations_submit', 'Submit the observations (one idea each, ≤ 40 word
   const r = root(folder);
   const study = loadStudy(r, slug);
   const dir = sessionDir(r, slug, participant);
+  if (!fs.existsSync(path.join(dir, 'transcript.redacted.json'))) throw new Error(`${participant} hasn't been prepared yet. Run session_prepare for ${participant} first, then read its analysis-input.json.`);
   const session = { transcript: readJson(path.join(dir, 'transcript.redacted.json')), events: readJson(path.join(dir, 'events.json'), { events: [] }), frames: readJson(path.join(dir, 'frames.json'), { frames: [] }) };
   const ids = observations.map((o) => (o.id.startsWith(`${participant}-`) ? o : { ...o, id: `${participant}-${o.id}` }));
   const { accepted, rejected } = verifyObservations({ observations: ids }, session);

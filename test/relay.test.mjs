@@ -4,9 +4,10 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { signRequest } from '../relay/sigv4.mjs';
-import { createRelay, loadSecrets, fetchSecret, parseRetentionDays } from '../relay/handler.mjs';
+import { createRelay, loadSecrets, fetchSecret, parseRetentionDays, signToken } from '../relay/handler.mjs';
 import { folderStore } from '../relay/stores.mjs';
-import { sweepOld } from '../relay/local.mjs';
+import { sweepOld, startLocalRelay } from '../relay/local.mjs';
+import http from 'node:http';
 
 const SECRET = 's'.repeat(32);
 const ADMIN = 'a'.repeat(32);
@@ -72,6 +73,41 @@ test('createRelay /list reports retention_days', async () => {
     assert.throws(() => parseRetentionDays('1.5'), /1 to 7/);
     assert.equal(parseRetentionDays('3'), 3);
   } finally { fs.rmSync(dir, { recursive: true, force: true }); }
+});
+
+test('relay refuses to overwrite an uploaded piece and caps piece numbers', async () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'relay-'));
+  try {
+    const relay = createRelay({ store: folderStore({ dir, baseUrl: 'http://127.0.0.1:1' }), secret: SECRET, adminToken: ADMIN });
+    const token = signToken({ study: 's1', p: 'P1', exp: Date.now() + 60000 }, SECRET);
+    const ask = (name) => relay({ method: 'POST', path: '/upload-url', body: JSON.stringify({ token, name, size: 2 }) });
+    assert.equal((await ask('chunk-screen-000000.webm')).status, 200);
+    fs.mkdirSync(path.join(dir, 's1', 'P1'), { recursive: true });
+    fs.writeFileSync(path.join(dir, 's1', 'P1', 'chunk-screen-000000.webm'), 'ab');
+    assert.equal((await ask('chunk-screen-000000.webm')).status, 409, 'an uploaded piece is never replaced');
+    assert.equal((await ask('chunk-screen-004000.webm')).status, 400, 'piece numbers are capped');
+    assert.equal((await ask('chunk-screen-003999.webm')).status, 200);
+  } finally { fs.rmSync(dir, { recursive: true, force: true }); }
+});
+
+test('local relay: a dropped upload leaves nothing behind, so the retry is accepted', async () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'relay-'));
+  const r = await startLocalRelay({ dir, port: 0, secret: SECRET, adminToken: ADMIN });
+  try {
+    const base = `http://127.0.0.1:${r.server.address().port}`;
+    const token = signToken({ study: 's1', p: 'P1', exp: Date.now() + 60000 }, SECRET);
+    const ask = async () => fetch(`${base}/upload-url`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ token, name: 'answers.json', size: 10 }) });
+    const { url } = await (await ask()).json();
+    const u = new URL(url.replace(/^http:\/\/[^/]+/, base));
+    await new Promise((resolve) => {
+      const req = http.request({ host: '127.0.0.1', port: u.port, path: u.pathname, method: 'PUT', headers: { 'content-length': 10 } });
+      req.on('error', resolve);
+      req.write('abcd');
+      setTimeout(() => { req.destroy(); setTimeout(resolve, 200); }, 100);
+    });
+    assert.ok(!fs.existsSync(path.join(dir, 's1', 'P1', 'answers.json')), 'no half piece');
+    assert.equal((await ask()).status, 200, 'the retry can upload it');
+  } finally { await r.close(); fs.rmSync(dir, { recursive: true, force: true }); }
 });
 
 test('local relay sweep honours retention days', () => {

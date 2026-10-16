@@ -7806,6 +7806,8 @@ var require_Alias = __commonJS({
        * instance of the `source` anchor before this node.
        */
       resolve(doc, ctx) {
+        if (ctx?.maxAliasCount === 0)
+          throw new ReferenceError("Alias resolution is disabled");
         let nodes;
         if (ctx?.aliasResolveCache) {
           nodes = ctx.aliasResolveCache;
@@ -7827,36 +7829,38 @@ var require_Alias = __commonJS({
           if (node.anchor === this.source)
             found = node;
         }
+        if (found && ctx) {
+          const { anchors: anchors2, doc: doc2, maxAliasCount } = ctx;
+          let data = anchors2.get(found);
+          if (!data) {
+            toJS.toJS(found, null, ctx);
+            data = anchors2.get(found);
+          }
+          if (data?.res === void 0) {
+            const msg = "This should not happen: Alias anchor was not resolved?";
+            throw new ReferenceError(msg);
+          }
+          if (maxAliasCount >= 0) {
+            data.count += 1;
+            if (data.aliasCount === 0)
+              data.aliasCount = getAliasCount(doc2, found, anchors2);
+            if (data.count * data.aliasCount > maxAliasCount) {
+              const msg = "Excessive alias count indicates a resource exhaustion attack";
+              throw new ReferenceError(msg);
+            }
+          }
+        }
         return found;
       }
       toJSON(_arg, ctx) {
         if (!ctx)
           return { source: this.source };
-        const { anchors: anchors2, doc, maxAliasCount } = ctx;
-        const source = this.resolve(doc, ctx);
+        const source = this.resolve(ctx.doc, ctx);
         if (!source) {
           const msg = `Unresolved alias (the anchor must be set before the alias): ${this.source}`;
           throw new ReferenceError(msg);
         }
-        let data = anchors2.get(source);
-        if (!data) {
-          toJS.toJS(source, null, ctx);
-          data = anchors2.get(source);
-        }
-        if (!data || data.res === void 0) {
-          const msg = "This should not happen: Alias anchor was not resolved?";
-          throw new ReferenceError(msg);
-        }
-        if (maxAliasCount >= 0) {
-          data.count += 1;
-          if (data.aliasCount === 0)
-            data.aliasCount = getAliasCount(doc, source, anchors2);
-          if (data.count * data.aliasCount > maxAliasCount) {
-            const msg = "Excessive alias count indicates a resource exhaustion attack";
-            throw new ReferenceError(msg);
-          }
-        }
-        return data.res;
+        return ctx.anchors.get(source).res;
       }
       toString(ctx, _onComment, _onChompKeep) {
         const src = `*${this.source}`;
@@ -8605,6 +8609,7 @@ var require_stringify = __commonJS({
         nullStr: "null",
         simpleKeys: false,
         singleQuote: null,
+        trailingComma: false,
         trueStr: "true",
         verifyAliasOrder: true
       }, doc.schema.toStringOptions, options);
@@ -8793,7 +8798,7 @@ ${indent}:`;
 ${stringifyComment.indentComment(cs, ctx.indent)}`;
         }
         if (valueStr === "" && !ctx.inFlow) {
-          if (ws === "\n")
+          if (ws === "\n" && valueComment)
             ws = "\n\n";
         } else {
           ws += `
@@ -8877,18 +8882,18 @@ var require_merge = __commonJS({
     };
     var isMergeKey = (ctx, key) => (merge2.identify(key) || identity.isScalar(key) && (!key.type || key.type === Scalar.Scalar.PLAIN) && merge2.identify(key.value)) && ctx?.doc.schema.tags.some((tag) => tag.tag === merge2.tag && tag.default);
     function addMergeToJSMap(ctx, map, value) {
-      value = ctx && identity.isAlias(value) ? value.resolve(ctx.doc) : value;
-      if (identity.isSeq(value))
-        for (const it of value.items)
+      const source = resolveAliasValue(ctx, value);
+      if (identity.isSeq(source))
+        for (const it of source.items)
           mergeValue(ctx, map, it);
-      else if (Array.isArray(value))
-        for (const it of value)
+      else if (Array.isArray(source))
+        for (const it of source)
           mergeValue(ctx, map, it);
       else
-        mergeValue(ctx, map, value);
+        mergeValue(ctx, map, source);
     }
     function mergeValue(ctx, map, value) {
-      const source = ctx && identity.isAlias(value) ? value.resolve(ctx.doc) : value;
+      const source = resolveAliasValue(ctx, value);
       if (!identity.isMap(source))
         throw new Error("Merge sources must be maps or map aliases");
       const srcMap = source.toJSON(null, ctx, Map);
@@ -8908,6 +8913,9 @@ var require_merge = __commonJS({
         }
       }
       return map;
+    }
+    function resolveAliasValue(ctx, value) {
+      return ctx && identity.isAlias(value) ? value.resolve(ctx.doc, ctx) : value;
     }
     exports.addMergeToJSMap = addMergeToJSMap;
     exports.isMergeKey = isMergeKey;
@@ -9122,12 +9130,19 @@ ${indent}${line}` : "\n";
         if (comment)
           reqNewline = true;
         let str = stringify.stringify(item, itemCtx, () => comment = null);
-        if (i < items.length - 1)
+        reqNewline || (reqNewline = lines.length > linesAtValue || str.includes("\n"));
+        if (i < items.length - 1) {
           str += ",";
+        } else if (ctx.options.trailingComma) {
+          if (ctx.options.lineWidth > 0) {
+            reqNewline || (reqNewline = lines.reduce((sum, line) => sum + line.length + 2, 2) + (str.length + 2) > ctx.options.lineWidth);
+          }
+          if (reqNewline) {
+            str += ",";
+          }
+        }
         if (comment)
           str += stringifyComment.lineComment(str, itemIndent, commentString(comment));
-        if (!reqNewline && (lines.length > linesAtValue || str.includes("\n")))
-          reqNewline = true;
         lines.push(str);
         linesAtValue = lines.length;
       }
@@ -9538,8 +9553,8 @@ var require_stringifyNumber = __commonJS({
       const num = typeof value === "number" ? value : Number(value);
       if (!isFinite(num))
         return isNaN(num) ? ".nan" : num < 0 ? "-.inf" : ".inf";
-      let n = JSON.stringify(value);
-      if (!format && minFractionDigits && (!tag || tag === "tag:yaml.org,2002:float") && /^\d/.test(n)) {
+      let n = Object.is(value, -0) ? "-0" : JSON.stringify(value);
+      if (!format && minFractionDigits && (!tag || tag === "tag:yaml.org,2002:float") && /^-?\d/.test(n) && !n.includes("e")) {
         let i = n.indexOf(".");
         if (i < 0) {
           i = n.length;
@@ -10906,7 +10921,7 @@ var require_errors2 = __commonJS({
       if (/[^ ]/.test(lineStr)) {
         let count = 1;
         const end = error2.linePos[1];
-        if (end && end.line === line && end.col > col) {
+        if (end?.line === line && end.col > col) {
           count = Math.max(1, Math.min(end.col - col, 80 - ci));
         }
         const pointer = " ".repeat(ci) + "^".repeat(count);
@@ -11269,7 +11284,7 @@ var require_resolve_block_seq = __commonJS({
         });
         if (!props.found) {
           if (props.anchor || props.tag || value) {
-            if (value && value.type === "block-seq")
+            if (value?.type === "block-seq")
               onError(props.end, "BAD_INDENT", "All sequence items must start at the same column");
             else
               onError(offset, "MISSING_CHAR", "Sequence item without - indicator");
@@ -11466,7 +11481,7 @@ var require_resolve_flow_collection = __commonJS({
                 onError(valueProps.found, "KEY_OVER_1024_CHARS", "The : indicator must be at most 1024 chars after the start of an implicit flow sequence key");
             }
           } else if (value) {
-            if ("source" in value && value.source && value.source[0] === ":")
+            if ("source" in value && value.source?.[0] === ":")
               onError(value, "MISSING_CHAR", `Missing space after : in ${fcName}`);
             else
               onError(valueProps.start, "MISSING_CHAR", `Missing , or : between ${fcName} items`);
@@ -11503,7 +11518,7 @@ var require_resolve_flow_collection = __commonJS({
       const expectedEnd = isMap ? "}" : "]";
       const [ce, ...ee] = fc.end;
       let cePos = offset;
-      if (ce && ce.source === expectedEnd)
+      if (ce?.source === expectedEnd)
         cePos = ce.offset + ce.source.length;
       else {
         const name = fcName[0].toUpperCase() + fcName.substring(1);
@@ -11570,7 +11585,7 @@ var require_compose_collection = __commonJS({
       let tag = ctx.schema.tags.find((t) => t.tag === tagName && t.collection === expType);
       if (!tag) {
         const kt = ctx.schema.knownTags[tagName];
-        if (kt && kt.collection === expType) {
+        if (kt?.collection === expType) {
           ctx.schema.tags.push(Object.assign({}, kt, { default: false }));
           tag = kt;
         } else {
@@ -11847,37 +11862,38 @@ var require_resolve_flow_scalar = __commonJS({
       }
       if (badChar)
         onError(0, "BAD_SCALAR_START", `Plain value cannot start with ${badChar}`);
-      return foldLines(source);
+      return unfoldLines(source);
     }
     function singleQuotedValue(source, onError) {
       if (source[source.length - 1] !== "'" || source.length === 1)
         onError(source.length, "MISSING_CHAR", "Missing closing 'quote");
-      return foldLines(source.slice(1, -1)).replace(/''/g, "'");
+      return unfoldLines(source.slice(1, -1)).replace(/''/g, "'");
     }
-    function foldLines(source) {
-      let first, line;
-      try {
-        first = new RegExp("(.*?)(?<![ 	])[ 	]*\r?\n", "sy");
-        line = new RegExp("[ 	]*(.*?)(?:(?<![ 	])[ 	]*)?\r?\n", "sy");
-      } catch {
-        first = /(.*?)[ \t]*\r?\n/sy;
-        line = /[ \t]*(.*?)[ \t]*\r?\n/sy;
-      }
-      let match = first.exec(source);
+    function unfoldLines(source) {
+      const line = /(.*?)\r?\n/sy;
+      let match = line.exec(source);
       if (!match)
         return source;
-      let res = match[1];
+      let trimEnd, trimBoth;
+      try {
+        trimEnd = new RegExp("(?<![ 	])[ 	]+$");
+        trimBoth = new RegExp("^[ 	]+|(?<![ 	])[ 	]+$", "g");
+      } catch {
+        trimEnd = /[ \t]+$/;
+        trimBoth = /^[ \t]+|[ \t]+$/g;
+      }
+      let res = match[1].replace(trimEnd, "");
       let sep = " ";
-      let pos = first.lastIndex;
-      line.lastIndex = pos;
+      let pos = line.lastIndex;
       while (match = line.exec(source)) {
-        if (match[1] === "") {
+        const lm = match[1].replace(trimBoth, "");
+        if (lm === "") {
           if (sep === "\n")
             res += sep;
           else
             sep = "\n";
         } else {
-          res += sep + match[1];
+          res += sep + lm;
           sep = " ";
         }
         pos = line.lastIndex;
@@ -11911,7 +11927,7 @@ var require_resolve_flow_scalar = __commonJS({
             while (next === " " || next === "	")
               next = source[++i + 1];
           } else if (next === "x" || next === "u" || next === "U") {
-            const length = { x: 2, u: 4, U: 8 }[next];
+            const length = next === "x" ? 2 : next === "u" ? 4 : 8;
             res += parseCharCode(source, i + 1, length, onError);
             i += length;
           } else {
@@ -11986,12 +12002,13 @@ var require_resolve_flow_scalar = __commonJS({
       const cc = source.substr(offset, length);
       const ok2 = cc.length === length && /^[0-9a-fA-F]+$/.test(cc);
       const code = ok2 ? parseInt(cc, 16) : NaN;
-      if (isNaN(code)) {
+      try {
+        return String.fromCodePoint(code);
+      } catch {
         const raw = source.substr(offset - 2, length + 2);
         onError(offset - 2, "BAD_DQ_ESCAPE", `Invalid escape sequence ${raw}`);
         return raw;
       }
-      return String.fromCodePoint(code);
     }
     exports.resolveFlowScalar = resolveFlowScalar;
   }
@@ -12141,17 +12158,22 @@ var require_compose_node = __commonJS({
         case "block-map":
         case "block-seq":
         case "flow-collection":
-          node = composeCollection.composeCollection(CN, ctx, token, props, onError);
-          if (anchor)
-            node.anchor = anchor.source.substring(1);
+          try {
+            node = composeCollection.composeCollection(CN, ctx, token, props, onError);
+            if (anchor)
+              node.anchor = anchor.source.substring(1);
+          } catch (error2) {
+            const message = error2 instanceof Error ? error2.message : String(error2);
+            onError(token, "RESOURCE_EXHAUSTION", message);
+          }
           break;
         default: {
           const message = token.type === "error" ? token.message : `Unsupported token (type: ${token.type})`;
           onError(token, "UNEXPECTED_TOKEN", message);
-          node = composeEmptyNode(ctx, token.offset, void 0, null, props, onError);
           isSrcToken = false;
         }
       }
+      node ?? (node = composeEmptyNode(ctx, token.offset, void 0, null, props, onError));
       if (anchor && node.anchor === "")
         onError(anchor, "BAD_ALIAS", "Anchor cannot be an empty string");
       if (atKey && ctx.options.stringKeys && (!identity.isScalar(node) || typeof node.value !== "string" || node.tag && node.tag !== "tag:yaml.org,2002:str")) {
@@ -12336,8 +12358,10 @@ ${cb}` : comment;
           }
         }
         if (afterDoc) {
-          Array.prototype.push.apply(doc.errors, this.errors);
-          Array.prototype.push.apply(doc.warnings, this.warnings);
+          for (let i = 0; i < this.errors.length; ++i)
+            doc.errors.push(this.errors[i]);
+          for (let i = 0; i < this.warnings.length; ++i)
+            doc.warnings.push(this.warnings[i]);
         } else {
           doc.errors = this.errors;
           doc.warnings = this.warnings;
@@ -13070,7 +13094,7 @@ var require_lexer = __commonJS({
           const n = (yield* this.pushCount(1)) + (yield* this.pushSpaces(true));
           this.indentNext = this.indentValue + 1;
           this.indentValue += n;
-          return yield* this.parseBlockStart();
+          return "block-start";
         }
         return "doc";
       }
@@ -13369,28 +13393,38 @@ var require_lexer = __commonJS({
         return 0;
       }
       *pushIndicators() {
-        switch (this.charAt(0)) {
-          case "!":
-            return (yield* this.pushTag()) + (yield* this.pushSpaces(true)) + (yield* this.pushIndicators());
-          case "&":
-            return (yield* this.pushUntil(isNotAnchorChar)) + (yield* this.pushSpaces(true)) + (yield* this.pushIndicators());
-          case "-":
-          // this is an error
-          case "?":
-          // this is an error outside flow collections
-          case ":": {
-            const inFlow = this.flowLevel > 0;
-            const ch1 = this.charAt(1);
-            if (isEmpty(ch1) || inFlow && flowIndicatorChars.has(ch1)) {
-              if (!inFlow)
-                this.indentNext = this.indentValue + 1;
-              else if (this.flowKey)
-                this.flowKey = false;
-              return (yield* this.pushCount(1)) + (yield* this.pushSpaces(true)) + (yield* this.pushIndicators());
+        let n = 0;
+        loop: while (true) {
+          switch (this.charAt(0)) {
+            case "!":
+              n += yield* this.pushTag();
+              n += yield* this.pushSpaces(true);
+              continue loop;
+            case "&":
+              n += yield* this.pushUntil(isNotAnchorChar);
+              n += yield* this.pushSpaces(true);
+              continue loop;
+            case "-":
+            // this is an error
+            case "?":
+            // this is an error outside flow collections
+            case ":": {
+              const inFlow = this.flowLevel > 0;
+              const ch1 = this.charAt(1);
+              if (isEmpty(ch1) || inFlow && flowIndicatorChars.has(ch1)) {
+                if (!inFlow)
+                  this.indentNext = this.indentValue + 1;
+                else if (this.flowKey)
+                  this.flowKey = false;
+                n += yield* this.pushCount(1);
+                n += yield* this.pushSpaces(true);
+                continue loop;
+              }
             }
           }
+          break loop;
         }
-        return 0;
+        return n;
       }
       *pushTag() {
         if (this.charAt(1) === "<") {
@@ -13549,6 +13583,13 @@ var require_parser = __commonJS({
       }
       return prev.splice(i, prev.length);
     }
+    function arrayPushArray(target, source) {
+      if (source.length < 1e5)
+        Array.prototype.push.apply(target, source);
+      else
+        for (let i = 0; i < source.length; ++i)
+          target.push(source[i]);
+    }
     function fixFlowSeqItems(fc) {
       if (fc.start.type === "flow-seq-start") {
         for (const it of fc.items) {
@@ -13558,11 +13599,11 @@ var require_parser = __commonJS({
             delete it.key;
             if (isFlowToken(it.value)) {
               if (it.value.end)
-                Array.prototype.push.apply(it.value.end, it.sep);
+                arrayPushArray(it.value.end, it.sep);
               else
                 it.value.end = it.sep;
             } else
-              Array.prototype.push.apply(it.start, it.sep);
+              arrayPushArray(it.start, it.sep);
             delete it.sep;
           }
         }
@@ -13668,7 +13709,7 @@ var require_parser = __commonJS({
       }
       *step() {
         const top = this.peek(1);
-        if (this.type === "doc-end" && (!top || top.type !== "doc-end")) {
+        if (this.type === "doc-end" && top?.type !== "doc-end") {
           while (this.stack.length > 0)
             yield* this.pop();
           this.stack.push({
@@ -13917,7 +13958,7 @@ var require_parser = __commonJS({
                 const prev = map.items[map.items.length - 2];
                 const end = prev?.value?.end;
                 if (Array.isArray(end)) {
-                  Array.prototype.push.apply(end, it.start);
+                  arrayPushArray(end, it.start);
                   end.push(this.sourceToken);
                   map.items.pop();
                   return;
@@ -14105,7 +14146,7 @@ var require_parser = __commonJS({
                 const prev = seq2.items[seq2.items.length - 2];
                 const end = prev?.value?.end;
                 if (Array.isArray(end)) {
-                  Array.prototype.push.apply(end, it.start);
+                  arrayPushArray(end, it.start);
                   end.push(this.sourceToken);
                   seq2.items.pop();
                   return;
@@ -14146,7 +14187,7 @@ var require_parser = __commonJS({
           do {
             yield* this.pop();
             top = this.peek(1);
-          } while (top && top.type === "flow-collection");
+          } while (top?.type === "flow-collection");
         } else if (fc.end.length === 0) {
           switch (this.type) {
             case "comma":
@@ -28848,7 +28889,12 @@ function readJson(f, fallback) {
     if (fallback !== void 0) return fallback;
     throw new Error(`Missing file: ${f}`);
   }
-  return JSON.parse(fs.readFileSync(f, "utf8"));
+  const text = fs.readFileSync(f, "utf8");
+  try {
+    return JSON.parse(text);
+  } catch (e) {
+    throw new Error(`${f} is damaged (not valid JSON: ${e.message}). Restore it from a backup (or its .bak copy, if there is one), or remove it and redo that step.`);
+  }
 }
 function writeJson(f, data) {
   fs.mkdirSync(path.dirname(f), { recursive: true });
@@ -29895,9 +29941,9 @@ var WEB = { "runner/index.html": `<!doctype html>
 
   // ---------- helpers ----------
   const esc = (s) => String(s == null ? '' : s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
-  const say = (msg) => { statusEl.textContent = msg; };
+  const say = (msg) => { statusEl.textContent = linkDead && msg !== LINK_DEAD ? LINK_DEAD : msg; };
   function render(html, focusSel) {
-    say('');
+    say(linkDead ? LINK_DEAD : ''); // a refused link stays on screen
     main.innerHTML = html;
     const f = focusSel ? main.querySelector(focusSel) : main.querySelector('h1');
     if (f) { f.setAttribute('tabindex', '-1'); f.focus(); }
@@ -29944,8 +29990,11 @@ var WEB = { "runner/index.html": `<!doctype html>
   }
   let pumping = false;
   let backoff = 1000;
+  // The relay refused the link itself (expired or not valid): retrying can't help.
+  const LINK_DEAD = 'This link has expired or is no longer valid, so your session can\\'t be sent. What you did is saved on this device. Please contact the researcher who sent you the link.';
+  let linkDead = false;
   async function pump() {
-    if (pumping || !S.relay) return;
+    if (pumping || !S.relay || linkDead) return;
     pumping = true;
     try {
       for (;;) {
@@ -29953,7 +30002,9 @@ var WEB = { "runner/index.html": `<!doctype html>
         if (!item) break;
         try {
           const r = await fetch(S.relay + '/upload-url', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ token: token, name: item.name, size: item.blob.size }) });
-          if (r.status === 409) { await removePending(item.name); continue; }
+          // 409: already received (or the session is finished). 400: this piece can never be accepted.
+          if (r.status === 409 || r.status === 400) { await removePending(item.name); continue; }
+          if (r.status === 401 || r.status === 403) { linkDead = true; say(LINK_DEAD); break; }
           if (!r.ok) throw new Error('relay ' + r.status);
           const { url } = await r.json();
           const put = await fetch(url, { method: 'PUT', body: item.blob, headers: { 'content-type': item.blob.type || 'application/octet-stream' } });
@@ -30247,10 +30298,14 @@ var WEB = { "runner/index.html": `<!doctype html>
     render('<section class="panel"><h1>Thank you</h1><p id="up" role="status">Sending your session. Please keep this page open.</p></section>');
     progressEl.textContent = '';
     const poll = async () => {
+      if (linkDead) { document.getElementById('up').textContent = LINK_DEAD; return; }
       const left = await countPending();
       if (left > 0) { document.getElementById('up').textContent = 'Sending your session (' + left + ' parts left). Please keep this page open.'; await pump(); return setTimeout(poll, 1500); }
       enqueue('done.json', new Blob([JSON.stringify({ finished_at: new Date().toISOString() })], { type: 'application/json' }));
       await pump();
+      // Only say it's sent once it really is; keep the saved state otherwise.
+      if (linkDead) { document.getElementById('up').textContent = LINK_DEAD; return; }
+      if (await countPending()) return setTimeout(poll, 1500);
       document.getElementById('up').textContent = 'All done. Your session has been sent. You can close this page.';
       try { localStorage.removeItem(storeKey); } catch (e) { /* ignore */ }
     };
@@ -30268,10 +30323,13 @@ var WEB = { "runner/index.html": `<!doctype html>
     flushEvents(true);
     enqueue('answers.json', new Blob([JSON.stringify({ answers: state.answers, tasks: state.tasks, device: state.device, interrupted: true })], { type: 'application/json' }));
     const poll = async () => {
+      if (linkDead) { document.getElementById('up').textContent = LINK_DEAD; return; }
       const left = await countPending();
       if (left > 0) { await pump(); return setTimeout(poll, 1500); }
       enqueue('done.json', new Blob([JSON.stringify({ finished_at: new Date().toISOString(), interrupted: true })], { type: 'application/json' }));
       await pump();
+      if (linkDead) { document.getElementById('up').textContent = LINK_DEAD; return; }
+      if (await countPending()) return setTimeout(poll, 1500);
       document.getElementById('up').textContent = 'Sent. You can close this page. If you\\'d like to try again, please contact the researcher who sent you the link.';
       try { localStorage.removeItem(storeKey); } catch (e) { /* ignore */ }
     };
@@ -31083,9 +31141,11 @@ import path5 from "node:path";
 // node_modules/fflate/esm/index.mjs
 import { createRequire } from "module";
 var require2 = createRequire("/");
+var _a;
 var Worker;
+var isMarkedAsUntransferable;
 try {
-  Worker = require2("worker_threads").Worker;
+  _a = require2("worker_threads"), Worker = _a.Worker, isMarkedAsUntransferable = _a.isMarkedAsUntransferable;
 } catch (e) {
 }
 var u8 = Uint8Array;
@@ -31281,6 +31341,7 @@ var ec = [
   "stream finished",
   "no stream handler",
   ,
+  // determined by compression function
   "no callback",
   "invalid UTF-8 data",
   "extra field too long",
@@ -31495,14 +31556,28 @@ var slzh = function(d, b) {
   return b + 30 + b2(d, b + 26) + b2(d, b + 28);
 };
 var zh = function(d, b, z) {
-  var fnl = b2(d, b + 28), fn = strFromU8(d.subarray(b + 46, b + 46 + fnl), !(b2(d, b + 8) & 2048)), es = b + 46 + fnl, bs = b4(d, b + 20);
-  var _a2 = z && bs == 4294967295 ? z64e(d, es) : [bs, b4(d, b + 24), b4(d, b + 42)], sc = _a2[0], su = _a2[1], off = _a2[2];
-  return [b2(d, b + 10), sc, su, fn, es + b2(d, b + 30) + b2(d, b + 32), off];
+  var fnl = b2(d, b + 28), efl = b2(d, b + 30), fn = strFromU8(d.subarray(b + 46, b + 46 + fnl), !(b2(d, b + 8) & 2048)), es = b + 46 + fnl;
+  var _a2 = z64hs(d, es, efl, z, b4(d, b + 20), b4(d, b + 24), b4(d, b + 42)), sc = _a2[0], su = _a2[1], off = _a2[2];
+  return [b2(d, b + 10), sc, su, fn, es + efl + b2(d, b + 32), off];
 };
-var z64e = function(d, b) {
-  for (; b2(d, b) != 1; b += 4 + b2(d, b + 2))
-    ;
-  return [b8(d, b + 12), b8(d, b + 4), b8(d, b + 20)];
+var z64hs = function(d, b, l, z, sc, su, off) {
+  var nsc = sc == 4294967295, nsu = su == 4294967295, noff = off == 4294967295, e = b + l;
+  var nf = nsc + nsu + noff;
+  if (z && nf) {
+    for (; b + 4 < e; b += 4 + b2(d, b + 2)) {
+      if (b2(d, b) == 1) {
+        return [
+          nsc ? b8(d, b + 4 + 8 * nsu) : sc,
+          nsu ? b8(d, b + 4) : su,
+          noff ? b8(d, b + 4 + 8 * (nsu + nsc)) : off,
+          1
+        ];
+      }
+    }
+    if (z < 2)
+      err(13);
+  }
+  return [sc, su, off, 0];
 };
 function unzipSync(data, opts) {
   var files = {};
@@ -31516,7 +31591,7 @@ function unzipSync(data, opts) {
   if (!c)
     return {};
   var o = b4(data, e + 16);
-  var z = o == 4294967295 || c == 65535;
+  var z = b4(data, e - 20) == 117853008;
   if (z) {
     var ze = b4(data, e - 12);
     z = b4(data, ze) == 101075792;
@@ -32322,6 +32397,7 @@ function importResultsCsv({ root: root2, slug, study, csvPath, participantColumn
   if (videoColumn && !videoDir) throw new Error("video_dir is needed with video_column.");
   const idsFile = path7.join(studyDir(root2, slug), "consent", "external-ids.json");
   const ids = readJson(idsFile, { source: "csv", map: {} });
+  ids.map = Object.assign(/* @__PURE__ */ Object.create(null), ids.map);
   let next = Math.max(0, ...listSessions(root2, slug).map((p) => Number(p.slice(1))), ...Object.values(ids.map).map((p) => Number(p.slice(1)))) + 1;
   const report = { rows: rows.length, imported: [], skipped: [], warnings: [], note: "Task success is the testing tool's own result, taken as given. Imported sessions have no click data, so behaviour notes need the video or transcript." };
   const success2 = (t) => new Set((t.success_values ?? SUCCESS).map(norm));
@@ -32353,9 +32429,10 @@ function importResultsCsv({ root: root2, slug, study, csvPath, participantColumn
         report.warnings.push(`Row ${line} (${p}): outcome for ${t.task_id} isn't a known success or failure value, so that task is left out. Pass success_values or failure_values to map it.`);
         continue;
       }
-      const secs = t.time_column ? Number(row[t.time_column].replace(",", ".")) : NaN;
+      const cell = t.time_column ? String(row[t.time_column] ?? "").trim() : "";
+      const secs = cell ? Number(cell.replace(",", ".")) : NaN;
       const dur = Number.isFinite(secs) && secs >= 0 ? Math.round(secs * 1e3) : null;
-      if (t.time_column && dur === null && row[t.time_column]) report.warnings.push(`Row ${line} (${p}): time for ${t.task_id} is not a number of seconds, so no time is recorded.`);
+      if (dur === null && cell) report.warnings.push(`Row ${line} (${p}): time for ${t.task_id} is not a number of seconds, so no time is recorded.`);
       const id = () => `e${String(++seq2).padStart(5, "0")}`;
       events.push({ id: id(), t_ms: t0, type: "task_start", task_id: t.task_id });
       const end = { id: id(), t_ms: t0 + (dur ?? 0), type: "task_end", task_id: t.task_id, outcome: ok2 ? "completed" : "gave_up", reached: ok2, source: "csv" };
@@ -32784,7 +32861,7 @@ Each "##" section below becomes a marker you can select in the Studio.
 };
 
 // src/server.mjs
-var VERSION = "0.2.3";
+var VERSION = "0.2.4";
 var server = new McpServer({ name: "proofloop", version: VERSION });
 var ok = (data) => ({ content: [{ type: "text", text: typeof data === "string" ? data : JSON.stringify(data, null, 2) }] });
 var fail = (msg) => ({ isError: true, content: [{ type: "text", text: msg }] });
@@ -32934,13 +33011,15 @@ tool("study_create", "Create a study folder from templates: study.yaml, guide.md
   const cfg = loadConfig(r);
   const d = studyDir(r, slug);
   if (fs10.existsSync(path10.join(d, "study.yaml"))) throw new Error(`Study ${slug} already exists`);
-  const study = TEMPLATES.study.replace(/__NAME__/g, name).replace(/__SLUG__/g, slug).replace(/__MODE__/g, mode).replace(/__LOCATION__/g, cfg.location).replace(/__PATH__/g, r).replace(/__RELAY__/g, cfg.relay_url ? `
+  const q = (v) => JSON.stringify(String(v));
+  const fill = (tpl, vals) => tpl.replace(/__([A-Z]+)__/g, (m, k) => k in vals ? vals[k] : m);
+  const study = fill(TEMPLATES.study, { NAME: q(name), SLUG: slug, MODE: mode, LOCATION: cfg.location, PATH: q(r), RELAY: cfg.relay_url ? `
   relay:
-    url: ${cfg.relay_url}` : "").replace(/__ACCOUNT__/g, cfg.model_account ? `
-    account: ${cfg.model_account}` : "");
+    url: ${q(cfg.relay_url)}` : "", ACCOUNT: cfg.model_account ? `
+    account: ${cfg.model_account}` : "" });
   writeText(path10.join(d, "study.yaml"), study);
-  writeText(path10.join(d, "consent", "consent.md"), TEMPLATES.consent.replace(/__NAME__/g, name));
-  if (mode === "moderated") writeText(path10.join(d, "guide.md"), TEMPLATES.guide.replace(/__NAME__/g, name));
+  writeText(path10.join(d, "consent", "consent.md"), fill(TEMPLATES.consent, { NAME: name }));
+  if (mode === "moderated") writeText(path10.join(d, "guide.md"), fill(TEMPLATES.guide, { NAME: name }));
   fs10.mkdirSync(path10.join(d, "context", "sources"), { recursive: true });
   let ctxNote = "empty template";
   if (from_study) {
@@ -33112,6 +33191,7 @@ tool("observations_submit", "Submit the observations (one idea each, \u2264 40 w
   const r = root(folder);
   const study = loadStudy(r, slug);
   const dir = sessionDir(r, slug, participant);
+  if (!fs10.existsSync(path10.join(dir, "transcript.redacted.json"))) throw new Error(`${participant} hasn't been prepared yet. Run session_prepare for ${participant} first, then read its analysis-input.json.`);
   const session = { transcript: readJson(path10.join(dir, "transcript.redacted.json")), events: readJson(path10.join(dir, "events.json"), { events: [] }), frames: readJson(path10.join(dir, "frames.json"), { frames: [] }) };
   const ids = observations.map((o) => o.id.startsWith(`${participant}-`) ? o : { ...o, id: `${participant}-${o.id}` });
   const { accepted, rejected } = verifyObservations({ observations: ids }, session);

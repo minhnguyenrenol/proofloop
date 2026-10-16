@@ -48,9 +48,14 @@ export function startLocalRelay({ dir, port = 0, secret, adminToken, allowedOrig
             // Same rule as the signed S3 URL: the body must be the declared size.
             if (t.size && Number(req.headers['content-length']) !== t.size) { res.writeHead(400, cors); return res.end('size does not match'); }
             fs.mkdirSync(f.slice(0, f.lastIndexOf('/')), { recursive: true });
-            const out = fs.createWriteStream(f);
+            // Write beside the final name and rename when complete, like an S3 PUT:
+            // a dropped upload leaves no half piece that later uploads can't replace.
+            const part = `${f}.part`;
+            const out = fs.createWriteStream(part);
+            let done = false;
             req.pipe(out);
-            out.on('finish', () => { res.writeHead(200, cors); res.end(); });
+            out.on('finish', () => { done = true; fs.renameSync(part, f); res.writeHead(200, cors); res.end(); });
+            req.on('close', () => { if (!done && !req.complete) { out.destroy(); fs.rmSync(part, { force: true }); } });
             return;
           }
           res.writeHead(200, { ...cors, 'content-type': 'application/octet-stream' });

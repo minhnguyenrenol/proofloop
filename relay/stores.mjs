@@ -21,7 +21,8 @@ export function s3Store({ bucket, region, credentials = process.env }) {
     // Content-Length is signed, so S3 rejects an upload of any other size.
     putUrl: async (key, { size } = {}) => sign('PUT', key, {}, 600, size ? { 'content-length': size } : {}),
     getUrl: async (key) => sign('GET', key),
-    async exists(key) { const r = await fetch(sign('HEAD', key, {}, 60), { method: 'HEAD' }); return r.ok; },
+    // Only a 404 means "not there"; any other failure is an error, not a yes or no.
+    async exists(key) { const r = await fetch(sign('HEAD', key, {}, 60), { method: 'HEAD' }); if (r.ok) return true; if (r.status === 404) return false; throw new Error(`storage check failed: ${r.status}`); },
     async remove(key) { const r = await fetch(sign('DELETE', key, {}, 60), { method: 'DELETE' }); if (!r.ok && r.status !== 404) throw new Error(`delete failed ${r.status}`); },
     async list(prefix) {
       const out = [];
@@ -70,7 +71,7 @@ export function folderStore({ dir, baseUrl }) {
         for (const e of fs.readdirSync(d, { withFileTypes: true })) {
           const p = path.join(d, e.name);
           if (e.isDirectory()) walk(p);
-          else out.push({ key: path.relative(dir, p).split(path.sep).join('/'), size: fs.statSync(p).size, modified: fs.statSync(p).mtime.toISOString() });
+          else if (!e.name.endsWith('.part')) out.push({ key: path.relative(dir, p).split(path.sep).join('/'), size: fs.statSync(p).size, modified: fs.statSync(p).mtime.toISOString() });
         }
       };
       walk(base);

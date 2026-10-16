@@ -21,6 +21,7 @@ import { signRequest } from './sigv4.mjs';
 
 const NAME_RE = /^(chunk-screen-\d{6}\.webm|chunk-mic-\d{6}\.webm|events-\d{4}\.json|answers\.json|meta\.json|done\.json)$/;
 const MAX_BYTES = 25 * 1024 * 1024; // per piece
+const MAX_PIECES = 4000; // per track
 
 export function b64url(buf) {
   return Buffer.from(buf).toString('base64').replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
@@ -82,7 +83,12 @@ export function createRelay({ store, secret, adminToken, allowedOrigins = [], re
       const { study, p } = t.claims;
       if (!NAME_RE.test(input.name ?? '')) return json(400, { error: 'name not allowed' }, origin);
       if (!(input.size > 0 && input.size <= MAX_BYTES)) return json(400, { error: 'size missing or too large' }, origin);
+      // 4000 five-second pieces is over 5 hours per track; more is abuse, not a session.
+      const seq = input.name.match(/^chunk-(?:screen|mic)-(\d{6})\.webm$/);
+      if (seq && Number(seq[1]) >= MAX_PIECES) return json(400, { error: 'too many pieces' }, origin);
       if (await store.exists(`${study}/${p}/done.json`)) return json(409, { error: 'session already finished' }, origin);
+      // A piece that arrived is never replaced, so a reused link can't overwrite a session.
+      if (await store.exists(`${study}/${p}/${input.name}`)) return json(409, { error: 'already received' }, origin);
       const url = await store.putUrl(`${study}/${p}/${input.name}`, { size: input.size });
       return json(200, { url }, origin);
     }

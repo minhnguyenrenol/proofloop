@@ -8,7 +8,7 @@
       "name": "proofloop",
       "source": "./",
       "description": "Research Copilot for moderated and unmoderated prototype testing with evidence-checked synthesis.",
-      "version": "0.2.3"
+      "version": "0.2.4"
     }
   ],
   "description": "ProofLoop Research Copilot for moderated and unmoderated prototype testing."

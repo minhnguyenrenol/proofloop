@@ -1,6 +1,6 @@
 {
   "name": "proofloop",
-  "version": "0.2.3",
+  "version": "0.2.4",
   "description": "ProofLoop Research Copilot: moderated and unmoderated user testing, evidence-locked synthesis and findings fed back into prototypes, as a Claude Code and Cursor plugin.",
   "scripts": {
     "gen-assets": "node scripts/gen-assets.mjs",
@@ -20,8 +20,8 @@
   "license": "Apache-2.0",
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.32.1",
-    "fflate": "^0.8.2",
-    "yaml": "^2.8.1",
+    "fflate": "^0.8.3",
+    "yaml": "^2.9.1",
     "zod": "^3.25.76"
   },
   "devDependencies": {

@@ -30,9 +30,9 @@
 
   // ---------- helpers ----------
   const esc = (s) => String(s == null ? '' : s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
-  const say = (msg) => { statusEl.textContent = msg; };
+  const say = (msg) => { statusEl.textContent = linkDead && msg !== LINK_DEAD ? LINK_DEAD : msg; };
   function render(html, focusSel) {
-    say('');
+    say(linkDead ? LINK_DEAD : ''); // a refused link stays on screen
     main.innerHTML = html;
     const f = focusSel ? main.querySelector(focusSel) : main.querySelector('h1');
     if (f) { f.setAttribute('tabindex', '-1'); f.focus(); }
@@ -79,8 +79,11 @@
   }
   let pumping = false;
   let backoff = 1000;
+  // The relay refused the link itself (expired or not valid): retrying can't help.
+  const LINK_DEAD = 'This link has expired or is no longer valid, so your session can\'t be sent. What you did is saved on this device. Please contact the researcher who sent you the link.';
+  let linkDead = false;
   async function pump() {
-    if (pumping || !S.relay) return;
+    if (pumping || !S.relay || linkDead) return;
     pumping = true;
     try {
       for (;;) {
@@ -88,7 +91,9 @@
         if (!item) break;
         try {
           const r = await fetch(S.relay + '/upload-url', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ token: token, name: item.name, size: item.blob.size }) });
-          if (r.status === 409) { await removePending(item.name); continue; }
+          // 409: already received (or the session is finished). 400: this piece can never be accepted.
+          if (r.status === 409 || r.status === 400) { await removePending(item.name); continue; }
+          if (r.status === 401 || r.status === 403) { linkDead = true; say(LINK_DEAD); break; }
           if (!r.ok) throw new Error('relay ' + r.status);
           const { url } = await r.json();
           const put = await fetch(url, { method: 'PUT', body: item.blob, headers: { 'content-type': item.blob.type || 'application/octet-stream' } });
@@ -382,10 +387,14 @@
     render('<section class="panel"><h1>Thank you</h1><p id="up" role="status">Sending your session. Please keep this page open.</p></section>');
     progressEl.textContent = '';
     const poll = async () => {
+      if (linkDead) { document.getElementById('up').textContent = LINK_DEAD; return; }
       const left = await countPending();
       if (left > 0) { document.getElementById('up').textContent = 'Sending your session (' + left + ' parts left). Please keep this page open.'; await pump(); return setTimeout(poll, 1500); }
       enqueue('done.json', new Blob([JSON.stringify({ finished_at: new Date().toISOString() })], { type: 'application/json' }));
       await pump();
+      // Only say it's sent once it really is; keep the saved state otherwise.
+      if (linkDead) { document.getElementById('up').textContent = LINK_DEAD; return; }
+      if (await countPending()) return setTimeout(poll, 1500);
       document.getElementById('up').textContent = 'All done. Your session has been sent. You can close this page.';
       try { localStorage.removeItem(storeKey); } catch (e) { /* ignore */ }
     };
@@ -403,10 +412,13 @@
     flushEvents(true);
     enqueue('answers.json', new Blob([JSON.stringify({ answers: state.answers, tasks: state.tasks, device: state.device, interrupted: true })], { type: 'application/json' }));
     const poll = async () => {
+      if (linkDead) { document.getElementById('up').textContent = LINK_DEAD; return; }
       const left = await countPending();
       if (left > 0) { await pump(); return setTimeout(poll, 1500); }
       enqueue('done.json', new Blob([JSON.stringify({ finished_at: new Date().toISOString(), interrupted: true })], { type: 'application/json' }));
       await pump();
+      if (linkDead) { document.getElementById('up').textContent = LINK_DEAD; return; }
+      if (await countPending()) return setTimeout(poll, 1500);
       document.getElementById('up').textContent = 'Sent. You can close this page. If you\'d like to try again, please contact the researcher who sent you the link.';
       try { localStorage.removeItem(storeKey); } catch (e) { /* ignore */ }
     };

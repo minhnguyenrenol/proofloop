@@ -224,7 +224,8 @@ function check(input) {
   // A folder named sessions/ or consent/ matters inside a research folder. A
   // path that doesn't exist (yet) is treated as if it might be one; a bare word
   // ("fix consent banner", "grep sessions src/") is not a path.
-  const folderWhy = (n, t, guess = true) => (dirWhy(n) && (insideResearch(n) || (guess && /[/\\]/.test(t) && !fs.existsSync(n))) ? 'this folder holds raw research data; only listing commands may touch it.' : null);
+  // A backslash counts as a separator only before a name (research\x\sessions), not in a regex like consent\|x.
+  const folderWhy = (n, t, guess = true) => (dirWhy(n) && (insideResearch(n) || (guess && /\/|\\[\w.-]/.test(t) && !fs.existsSync(n))) ? 'this folder holds raw research data; only listing commands may touch it.' : null);
   // Paths may be relative to a folder the command moves into (cd, pushd, git -C),
   // so check them against every folder it could be in, including chained moves.
   const cwds = [norm('.', cwd)];

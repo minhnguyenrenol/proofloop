@@ -1,5 +1,17 @@
 # Changelog
 
+## 0.2.4
+
+Robustness fixes and dependency updates from the ECC review.
+
+- Participant page: when the relay refuses the link (expired or not valid), the participant is told to contact the researcher, instead of seeing "Connection problem" forever. A piece the relay can never accept is skipped instead of blocking the rest. "All done" only shows once everything has really been sent.
+- Relay: an uploaded piece is never replaced, so a reused link can't overwrite a session; pieces are capped at 4,000 per track (over 5 hours). The local relay writes uploads atomically, so a dropped upload can be retried. Storage errors are no longer read as "not there".
+- CSV import: a blank time cell means "no time", not 0 seconds (it was pulling median times down), and ids like `__proto__` import normally.
+- Study names and folder paths containing `:`, `#`, quotes or `$&` no longer break or truncate `study.yaml`.
+- Clearer errors: a damaged JSON file is named; submitting observations before `session_prepare` says to run it first.
+- Updated `fflate` to 0.8.3 and `yaml` to 2.9.1 (two moderate advisories); `npm audit` is clean.
+- Privacy guard: a backslash only counts as a path separator before a name, so regex searches like `consent\|x` aren't blocked.
+
 ## 0.2.3
 
 Privacy fixes from the ECC security and code review.
