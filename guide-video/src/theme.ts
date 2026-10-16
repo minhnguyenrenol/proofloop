@@ -3,9 +3,18 @@ import { loadFont as loadSerif } from "@remotion/google-fonts/Newsreader";
 import { loadFont as loadSans } from "@remotion/google-fonts/IBMPlexSans";
 import { loadFont as loadMono } from "@remotion/google-fonts/IBMPlexMono";
 
-export const serif = loadSerif("normal", { weights: ["600"], subsets: ["latin"] }).fontFamily;
-export const sans = loadSans("normal", { weights: ["400", "500"], subsets: ["latin"] }).fontFamily;
-export const mono = loadMono("normal", { weights: ["400", "500"], subsets: ["latin"] }).fontFamily;
+export const serif = loadSerif("normal", {
+  weights: ["600"],
+  subsets: ["latin"],
+}).fontFamily;
+export const sans = loadSans("normal", {
+  weights: ["400", "500"],
+  subsets: ["latin"],
+}).fontFamily;
+export const mono = loadMono("normal", {
+  weights: ["400", "500"],
+  subsets: ["latin"],
+}).fontFamily;
 
 export const color = {
   paper: "#f7f6f2",
