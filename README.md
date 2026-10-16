@@ -82,7 +82,7 @@ More in [docs/privacy.md](docs/privacy.md) and [docs/security.md](docs/security.
 
 ## Documentation
 
-- [docs/guide.html](docs/guide.html): **start here**, a step-by-step guide to running one study, with a one-minute video ([docs/proofloop-guide.mp4](docs/proofloop-guide.mp4)). The video's source is in [guide-video/](guide-video) (Remotion: `npm i`, then `npx remotion studio` to edit or `npx remotion render` to re-render).
+- [docs/guide.html](docs/guide.html): **start here**, a step-by-step guide to running one study, with a one-minute explainer video ([docs/proofloop-explainer.mp4](docs/proofloop-explainer.mp4)). The video's source is in [guide-video/](guide-video) (Remotion: `npm i`, then `npx remotion studio` to edit or `npx remotion render` to re-render).
 - [docs/setup.md](docs/setup.md): setup, relay deployment, hosting the participant page, transcription
 - [docs/privacy.md](docs/privacy.md): data flows, retention, erasure, DPIA notes
 - [docs/security.md](docs/security.md): threat model and controls

@@ -1,4 +1,5 @@
 import { Composition, Folder } from "remotion";
+import { Explainer, EXPLAINER_DURATION } from "./Explainer";
 import { GuideVideo, GUIDE_DURATION } from "./GuideVideo";
 import { StepScene } from "./StepScene";
 import { TitleCard } from "./TitleCard";
@@ -6,6 +7,7 @@ import { TitleCard } from "./TitleCard";
 export const RemotionRoot: React.FC = () => {
   return (
     <>
+      <Composition id="ProofLoopExplainer" component={Explainer} durationInFrames={EXPLAINER_DURATION} fps={30} width={1920} height={1080} />
       <Composition id="ProofLoopGuide" component={GuideVideo} durationInFrames={GUIDE_DURATION} fps={30} width={1920} height={1080} />
       <Folder name="Scenes">
         <Composition

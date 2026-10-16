@@ -10,13 +10,14 @@ export type StepProps = {
   readonly detail: string;
   readonly skill: string;
   readonly terminal?: boolean;
+  readonly of?: number; // total steps for the progress rail; 0 hides it
 };
 
 const ease = Easing.bezier(0.16, 1, 0.3, 1);
 const clamp = { extrapolateLeft: "clamp", extrapolateRight: "clamp" } as const;
 
 // One step of the guide: the number and progress on the left; what to do on the right.
-export const StepScene: React.FC<StepProps> = ({ step, title, saidIn, say, detail, skill, terminal }) => {
+export const StepScene: React.FC<StepProps> = ({ step, title, saidIn, say, detail, skill, terminal, of = TOTAL_STEPS }) => {
   const frame = useCurrentFrame();
   const { fps } = useVideoConfig();
   // The prompt types itself out, so the viewer reads what to say at typing pace.
@@ -34,14 +35,14 @@ export const StepScene: React.FC<StepProps> = ({ step, title, saidIn, say, detai
         >
           {step}
         </div>
-        <div>
-          <div style={{ fontSize: 30, color: color.ink2, marginBottom: 18 }}>Step {step} of {TOTAL_STEPS}</div>
+        {of > 0 && <div>
+          <div style={{ fontSize: 30, color: color.ink2, marginBottom: 18 }}>Step {step} of {of}</div>
           <div style={{ display: "flex", gap: 10 }}>
-            {Array.from({ length: TOTAL_STEPS }, (_, i) => (
+            {Array.from({ length: of }, (_, i) => (
               <div key={i} style={{ width: 22, height: 6, borderRadius: 3, backgroundColor: i < step ? color.signal : color.rule }} />
             ))}
           </div>
-        </div>
+        </div>}
       </div>
 
       <div style={{ flex: 1, padding: "130px 140px 110px 60px", display: "flex", flexDirection: "column" }}>
