@@ -28,7 +28,7 @@ import { which } from './lib/media.mjs';
 import { mdToHtml, esc } from './lib/markdown.mjs';
 import { TEMPLATES } from './lib/templates.mjs';
 
-const VERSION = '0.2.0';
+const VERSION = '0.2.1';
 const server = new McpServer({ name: 'proofloop', version: VERSION });
 
 // ---------- helpers ----------
@@ -51,9 +51,17 @@ function loadStudy(r, slug) {
   if (res.errors) throw new Error(`study.yaml has errors:\n${res.errors.join('\n')}`);
   return res.study;
 }
+// Keyed on the folder's real path, so the same folder reached through a
+// symlink (macOS /var -> /private/var, cloud drive links) finds its secrets.
+// Files keyed on the unresolved path by earlier versions are still found.
 function secretsPath(r) {
-  const id = crypto.createHash('sha256').update(path.resolve(r)).digest('hex').slice(0, 16);
-  return path.join(os.homedir(), '.config', 'proofloop', `${id}.json`);
+  const key = (p) => path.join(os.homedir(), '.config', 'proofloop', `${crypto.createHash('sha256').update(p).digest('hex').slice(0, 16)}.json`);
+  const abs = path.resolve(r);
+  let real = abs;
+  try { real = fs.realpathSync(abs); } catch { /* not created yet */ }
+  const f = key(real);
+  if (real !== abs && !fs.existsSync(f) && fs.existsSync(key(abs))) return key(abs);
+  return f;
 }
 // The relay URL is pinned next to the admin token when the secrets are
 // created, so an edited study.yaml can't send the token somewhere else.

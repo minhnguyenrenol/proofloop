@@ -1,5 +1,8 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
+import path from 'node:path';
+import os from 'node:os';
+import fs from 'node:fs';
 import { zipSync, strToU8 } from 'fflate';
 import { containsInOrder, normalise } from '../src/lib/text.mjs';
 import { parseVtt, parseSrt, parseText, parseDocx, parseTimestamp, assignRoles } from '../src/lib/transcript.mjs';
@@ -159,4 +162,23 @@ test('SigV4 presign matches the AWS documented example, and can sign Content-Len
   const put = presign({ ...base, method: 'PUT', signHeaders: { 'Content-Length': 1234 } });
   assert.match(put, /X-Amz-SignedHeaders=content-length%3Bhost/);
   assert.notEqual(put.split('X-Amz-Signature=')[1], presign({ ...base, method: 'PUT', signHeaders: { 'content-length': 1235 } }).split('X-Amz-Signature=')[1]);
+});
+
+test('research folder reached through a symlink and a path with spaces finds its relay secrets', async () => {
+  const base = fs.mkdtempSync(path.join(os.tmpdir(), 'proofloop space '));
+  const real = path.join(base, 'My Work'); fs.mkdirSync(real);
+  const link = path.join(base, 'link'); fs.symlinkSync(real, link);
+  const home = path.join(base, 'home'); fs.mkdirSync(home);
+  const { Client } = await import('@modelcontextprotocol/sdk/client/index.js');
+  const { StdioClientTransport } = await import('@modelcontextprotocol/sdk/client/stdio.js');
+  const client = new Client({ name: 't', version: '1' });
+  // The server starts in the real folder; setup is called with the symlinked path.
+  await client.connect(new StdioClientTransport({ command: process.execPath, args: [path.resolve(process.env.PROOFLOOP_SERVER ?? 'src/server.mjs')], cwd: real, env: { ...process.env, HOME: home } }));
+  try {
+    const r = await client.callTool({ name: 'setup_init', arguments: { path: path.join(link, 'research'), location: 'laptop', confirm_managed_device: true, product_name: 'X', relay_url: 'http://127.0.0.1:9', runner_base_url: 'https://r.example.com/', user_name: 'T' } });
+    assert.ok(!r.isError, r.content[0].text);
+    await client.callTool({ name: 'study_create', arguments: { slug: 's1', name: 'Study one', mode: 'unmoderated' } });
+    const b = await client.callTool({ name: 'runner_links', arguments: { slug: 's1', participants: ['P1'] } });
+    assert.ok(!/No relay secrets/.test(b.content[0].text), b.content[0].text);
+  } finally { await client.close(); fs.rmSync(base, { recursive: true, force: true }); }
 });

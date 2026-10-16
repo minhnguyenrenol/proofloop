@@ -32683,7 +32683,7 @@ Each "##" section below becomes a marker you can select in the Studio.
 };
 
 // src/server.mjs
-var VERSION = "0.2.0";
+var VERSION = "0.2.1";
 var server = new McpServer({ name: "proofloop", version: VERSION });
 var ok = (data) => ({ content: [{ type: "text", text: typeof data === "string" ? data : JSON.stringify(data, null, 2) }] });
 var fail = (msg) => ({ isError: true, content: [{ type: "text", text: msg }] });
@@ -32710,8 +32710,16 @@ ${res.errors.join("\n")}`);
   return res.study;
 }
 function secretsPath(r) {
-  const id = crypto7.createHash("sha256").update(path10.resolve(r)).digest("hex").slice(0, 16);
-  return path10.join(os.homedir(), ".config", "proofloop", `${id}.json`);
+  const key = (p) => path10.join(os.homedir(), ".config", "proofloop", `${crypto7.createHash("sha256").update(p).digest("hex").slice(0, 16)}.json`);
+  const abs = path10.resolve(r);
+  let real = abs;
+  try {
+    real = fs10.realpathSync(abs);
+  } catch {
+  }
+  const f = key(real);
+  if (real !== abs && !fs10.existsSync(f) && fs10.existsSync(key(abs))) return key(abs);
+  return f;
 }
 function relayOrigin(u) {
   const x = new URL(u);

@@ -1,6 +1,6 @@
 {
   "name": "proofloop",
-  "version": "0.2.0",
+  "version": "0.2.1",
   "description": "Research Copilot: plan, run and synthesise moderated and unmoderated prototype tests (Figma, GitHub, any URL) with evidence-checked AI, NN/g affinity mapping and before/after product context.",
   "author": {
     "name": "Minh Nguyen"

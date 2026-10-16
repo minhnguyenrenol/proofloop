@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.2.1
+
+- Fixed: `npm test` failed when the repo folder has a space in its path.
+- Fixed: relay secrets were not found when the research folder was reached through a symlink (for example macOS temporary folders or cloud drive links).
+
 ## 0.2.0
 
 - Fallback import from the current testing tool: `results_import` turns its results CSV and downloaded videos into sessions, with a private id mapping, success/failure value mapping and per-row warnings. Cell values are never returned to the model.
