@@ -1,6 +1,6 @@
 {
   "name": "proofloop",
-  "version": "0.2.1",
+  "version": "0.2.2",
   "description": "ProofLoop Research Copilot: moderated and unmoderated user testing, evidence-locked synthesis and findings fed back into prototypes, as a Claude Code and Cursor plugin.",
   "scripts": {
     "gen-assets": "node scripts/gen-assets.mjs",

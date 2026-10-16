@@ -30605,8 +30605,9 @@ var WEB = { "runner/index.html": `<!doctype html>
   // the silence notice has its own quieter slot so it can't hide them.
   function warn(msg) { const w = $('warn'); if (w.textContent === msg) return; w.textContent = msg; w.hidden = !msg; }
   function quiet(msg) { const q = $('quiet'); if (q.textContent !== msg) q.textContent = msg; q.hidden = !msg; }
+  let resumed = false; // page reloaded while the plugin still holds a running recording
   function ready() {
-    $('start').disabled = !(display && mic && consentOk) || recorders.length > 0;
+    $('start').disabled = !(display && mic && consentOk) || recorders.length > 0 || resumed;
     const todo = [!consentOk && 'record consent in Claude', !display && 'choose the call window', !mic && 'turn on your microphone'].filter(Boolean);
     $('start-hint').textContent = recorders.length ? '' : todo.length ? 'To start: ' + todo.join(', ') + '.' : 'Ready to record.';
   }
@@ -30620,6 +30621,12 @@ var WEB = { "runner/index.html": `<!doctype html>
     $('consent').textContent = info.consent ? 'Consent is on file for ' + info.participant + '.' : 'No consent record for ' + info.participant + '. Recording stays off until consent is recorded.';
     $('consent').className = info.consent ? 'note ok' : 'note bad';
     if (info.already) warn('This participant already has a recording. Use a new participant id for a new session.');
+    if (info.recording) {
+      // The page was reloaded mid-call: the plugin still holds what was recorded.
+      resumed = true;
+      $('stop').disabled = false;
+      warn('This page was reloaded during the recording, so recording has paused. Press Stop and save to keep what was recorded so far.');
+    }
     const ul = $('sections');
     info.sections.forEach((s) => {
       const li = document.createElement('li');
@@ -30661,7 +30668,7 @@ var WEB = { "runner/index.html": `<!doctype html>
         display.getTracks().forEach((t) => t.stop());
         display = null;
       } else {
-        warn('');
+        if (!resumed) warn('');
         meter(new MediaStream(display.getAudioTracks()), $('lv-sys'), (ms) => {
           if (recorders.length && ms > 10000) quiet('No sound from the participant for 10 seconds. Check they are not muted and that call audio is still shared.');
           else quiet('');
@@ -30691,6 +30698,8 @@ var WEB = { "runner/index.html": `<!doctype html>
         for (let attempt = 0; attempt < 5; attempt++) {
           const r = await api('/chunk?track=' + track + '&seq=' + n, { method: 'POST', body: blob }).catch(() => null);
           if (r && r.ok) return;
+          // The first try was written but its reply was lost: the server already expects a later piece.
+          if (r && r.status === 409) { const j = await r.json().catch(() => ({})); if (j.expected > n) return; }
           await new Promise((res) => setTimeout(res, 500 * (attempt + 1)));
         }
         failed = true;
@@ -30703,9 +30712,11 @@ var WEB = { "runner/index.html": `<!doctype html>
   const pick = (kinds) => kinds.find((t) => MediaRecorder.isTypeSupported(t));
 
   $('start').onclick = async () => {
-    startedAt = Date.now();
-    const r = await api('/start', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ started_at: startedAt, tracks: ['screen', 'mic'], capture: display.getVideoTracks()[0].getSettings().displaySurface || 'unknown' }) });
-    if (!r.ok) { warn((await r.json()).error); return; }
+    $('start').disabled = true; // a double click must not start two recordings
+    const t0 = Date.now();
+    const r = await api('/start', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ started_at: t0, tracks: ['screen', 'mic'], capture: display.getVideoTracks()[0].getSettings().displaySurface || 'unknown' }) }).catch(() => null);
+    if (!r || !r.ok) { warn(r ? (await r.json()).error : 'Cannot reach the plugin. Is Claude Code or Cursor still running?'); ready(); return; }
+    startedAt = t0;
     startTrack(display, 'screen', pick(['video/webm;codecs=vp9,opus', 'video/webm;codecs=vp8,opus', 'video/webm']));
     startTrack(mic, 'mic', pick(['audio/webm;codecs=opus', 'audio/webm']));
     $('rec').hidden = false;
@@ -30720,13 +30731,21 @@ var WEB = { "runner/index.html": `<!doctype html>
   $('stop').onclick = async () => {
     $('stop').disabled = true;
     $('saved').textContent = 'Saving\u2026';
-    await Promise.all(recorders.map((r) => new Promise((res) => { r.addEventListener('stop', res, { once: true }); r.stop(); })));
-    await Promise.all(Object.values(uploads));
+    // A recorder whose shared window already closed has stopped on its own;
+    // calling stop() on it again would throw and the session would never be saved.
+    try {
+      await Promise.all(recorders.filter((r) => r.state !== 'inactive').map((r) => new Promise((res) => { r.addEventListener('stop', res, { once: true }); try { r.stop(); } catch (e) { res(); } })));
+      await Promise.all(Object.values(uploads));
+    } catch (e) { failed = true; }
     [display, mic].forEach((s) => s && s.getTracks().forEach((t) => t.stop()));
-    const r = await api('/stop', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ duration_ms: Date.now() - startedAt }) });
-    const j = await r.json();
+    let r = null;
+    let j = {};
+    try {
+      r = await api('/stop', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(recorders.length ? { duration_ms: Date.now() - startedAt } : {}) });
+      j = await r.json();
+    } catch (e) { j = { error: 'Cannot reach the plugin. Is Claude Code or Cursor still running?' }; }
     $('rec').hidden = true;
-    $('saved').textContent = r.ok && !failed ? 'Saved to the study folder. You can close this page and ask Claude to analyse the session.' : 'Saved with problems: ' + (j.error || 'some pieces failed to save') + '.';
+    $('saved').textContent = r && r.ok && !failed ? 'Saved to the study folder. You can close this page and ask Claude to analyse the session.' : 'Saved with problems: ' + (j.error || 'some pieces failed to save') + '.';
   };
 
   function marker(kind, text) {
@@ -30889,9 +30908,21 @@ var MAX_PIECE = 25 * 1024 * 1024;
 async function call(relayUrl, adminToken, method, p, query) {
   const u = new URL(relayUrl.replace(/\/$/, "") + p);
   for (const [k, v] of Object.entries(query)) u.searchParams.set(k, v);
-  const r = await fetch(u, { method, headers: { authorization: `Bearer ${adminToken}` } });
+  const r = await fetch(u, { method, headers: { authorization: `Bearer ${adminToken}` }, signal: AbortSignal.timeout(3e4) });
   const j = await r.json().catch(() => ({}));
   if (!r.ok) throw new Error(`relay ${method} ${p}: ${r.status} ${j.error ?? ""}`);
+  return j;
+}
+var ImportError = class extends Error {
+};
+function parseUpload(stage, name) {
+  let j;
+  try {
+    j = JSON.parse(fs4.readFileSync(path4.join(stage, name), "utf8"));
+  } catch {
+    throw new ImportError(`${name} is not valid JSON`);
+  }
+  if (!j || typeof j !== "object" || Array.isArray(j)) throw new ImportError(`${name} is not a JSON object`);
   return j;
 }
 async function importFromRelay({ root: root2, slug, relayUrl, adminToken, includeIncomplete = false, keepOnRelay = false, now = Date.now() }) {
@@ -30904,11 +30935,11 @@ async function importFromRelay({ root: root2, slug, relayUrl, adminToken, includ
     if (!byP.has(p)) byP.set(p, []);
     byP.get(p).push({ ...o, name });
   }
-  const report = { imported: [], skipped: [], deleted: 0, warnings: [] };
+  const report = { imported: [], skipped: [], failed: [], deleted: 0, warnings: [] };
   for (const [p, objs] of [...byP].sort()) {
     const dir = sessionDir(root2, slug, p);
     const prevRec = readJson(path4.join(dir, "recording.json"), null);
-    const studioRec = !!prevRec && prevRec.source !== "relay";
+    const studioRec = !!prevRec && prevRec.source !== "relay" || readJson(path4.join(dir, "session.json"), null)?.mode === "moderated";
     if (prevRec?.source === "relay" || fs4.existsSync(path4.join(dir, "runner-import.json"))) {
       report.warnings.push(`${p}: new uploads arrived after this session was imported. They were not imported${keepOnRelay ? "" : " and were deleted from the relay"}. If ${p} really took part twice, give the second session a new participant id.`);
       if (!keepOnRelay) for (const o of objs) {
@@ -30935,12 +30966,25 @@ async function importFromRelay({ root: root2, slug, relayUrl, adminToken, includ
     try {
       for (const o of objs) {
         const { url } = await call(relayUrl, adminToken, "GET", "/object", { study: slug, key: o.key });
-        const r = await fetch(url);
-        if (!r.ok) throw new Error(`download ${o.key} failed: ${r.status}`);
+        const r = await fetch(url, { signal: AbortSignal.timeout(3e5) });
+        if (!r.ok) throw new ImportError(`download of ${o.name} failed (${r.status})`);
         const buf = Buffer.from(await r.arrayBuffer());
-        if (o.size && buf.length !== o.size) throw new Error(`${o.key}: size ${buf.length} != ${o.size}`);
+        if (o.size && buf.length !== o.size) throw new ImportError(`${o.name} is ${buf.length} bytes, expected ${o.size}`);
         fs4.writeFileSync(path4.join(stage, o.name), buf);
       }
+      const evFiles = fs4.readdirSync(stage).filter((f) => /^events-\d{4}\.json$/.test(f)).sort();
+      let sessionStart = null;
+      const events = [];
+      for (const f of evFiles) {
+        const j = parseUpload(stage, f);
+        if (!Array.isArray(j.events)) throw new ImportError(`${f} has no list of events`);
+        sessionStart ??= j.session_start;
+        for (const e of j.events) events.push(e);
+      }
+      events.sort((a, b) => a.t_ms - b.t_ms);
+      const meta = fs4.existsSync(path4.join(stage, "meta.json")) ? parseUpload(stage, "meta.json") : null;
+      const doneInfo = fs4.existsSync(path4.join(stage, "done.json")) ? parseUpload(stage, "done.json") : {};
+      if (fs4.existsSync(path4.join(stage, "answers.json"))) parseUpload(stage, "answers.json");
       const files = {};
       fs4.mkdirSync(path4.join(dir, "media"), { recursive: true });
       for (const track of ["screen", "mic"]) {
@@ -30962,33 +31006,17 @@ async function importFromRelay({ root: root2, slug, relayUrl, adminToken, includ
         if (missing > 0) report.warnings.push(`${p} ${track}: ${missing} piece(s) missing`);
         files[track] = { file: `media/${track}.webm`, bytes: fs4.statSync(out).size, sha256: sha256File(out), pieces: chunks.length, missing_pieces: missing, duration_s: duration3 };
       }
-      const evFiles = fs4.readdirSync(stage).filter((f) => /^events-\d{4}\.json$/.test(f)).sort();
-      let sessionStart = null;
-      const events = [];
-      for (const f of evFiles) {
-        const j = JSON.parse(fs4.readFileSync(path4.join(stage, f), "utf8"));
-        sessionStart ??= j.session_start;
-        events.push(...j.events);
-      }
-      events.sort((a, b) => a.t_ms - b.t_ms);
-      if (events.length) {
-        const target = path4.join(dir, fs4.existsSync(path4.join(dir, "session.json")) ? "runner-events.json" : "events.json");
-        writeJson(target, { source: "runner", session_start: sessionStart, events });
-      }
+      if (events.length) writeJson(path4.join(dir, studioRec ? "runner-events.json" : "events.json"), { source: "runner", session_start: sessionStart, events });
       if (fs4.existsSync(path4.join(stage, "answers.json"))) fs4.copyFileSync(path4.join(stage, "answers.json"), path4.join(dir, "answers.json"));
-      if (fs4.existsSync(path4.join(stage, "meta.json"))) {
-        const meta = JSON.parse(fs4.readFileSync(path4.join(stage, "meta.json"), "utf8"));
-        if (meta.consent?.agreed) {
-          const cf = path4.join(studyDir(root2, slug), "consent", `${p}.json`);
-          if (!fs4.existsSync(cf)) writeJson(cf, { participant: p, agreed: true, version: meta.consent.version, at: meta.consent.at, method: "runner-checkbox", recorded_by: "participant" });
-        }
-        writeJson(path4.join(dir, "device.json"), { userAgent: meta.userAgent, screen: meta.screen, session_start: meta.session_start });
-      }
-      if (!fs4.existsSync(path4.join(dir, "session.json"))) writeJson(path4.join(dir, "session.json"), { participant: p, mode: "unmoderated", started_at_ms: sessionStart, started_at: sessionStart ? new Date(sessionStart).toISOString() : null });
-      const doneInfo = fs4.existsSync(path4.join(stage, "done.json")) ? JSON.parse(fs4.readFileSync(path4.join(stage, "done.json"), "utf8")) : {};
+      if (meta) writeJson(path4.join(dir, "device.json"), { userAgent: meta.userAgent, screen: meta.screen, session_start: meta.session_start });
+      if (!studioRec) writeJson(path4.join(dir, "session.json"), { participant: p, mode: "unmoderated", started_at_ms: sessionStart, started_at: sessionStart ? new Date(sessionStart).toISOString() : null });
       if (doneInfo.interrupted) report.warnings.push(`${p}: the participant's page was reloaded mid-test, so the session ends early. Tasks after that point have no result.`);
       const rec = { participant: p, imported_at: (/* @__PURE__ */ new Date()).toISOString(), source: "relay", complete: done && !doneInfo.interrupted, interrupted: !!doneInfo.interrupted, files };
       writeJson(path4.join(dir, studioRec ? "runner-import.json" : "recording.json"), rec);
+      if (meta?.consent?.agreed === true) {
+        const cf = path4.join(studyDir(root2, slug), "consent", `${p}.json`);
+        if (!fs4.existsSync(cf)) writeJson(cf, { participant: p, agreed: true, version: meta.consent.version, at: meta.consent.at, method: "runner-checkbox", recorded_by: "participant" });
+      }
       if (!keepOnRelay) {
         for (const o of objs) {
           await call(relayUrl, adminToken, "DELETE", "/object", { study: slug, key: o.key });
@@ -30996,6 +31024,10 @@ async function importFromRelay({ root: root2, slug, relayUrl, adminToken, includ
         }
       }
       report.imported.push({ participant: p, complete: rec.complete, interrupted: rec.interrupted, tracks: Object.keys(files), events: events.length });
+    } catch (e) {
+      const why = e instanceof ImportError ? e.message : `unexpected ${e.code ?? e.name ?? "error"} while assembling it`;
+      report.failed.push(p);
+      report.warnings.push(`${p}: could not be imported (${why.slice(0, 200)}). It was left on the relay; check it there, then run relay_import again.`);
     } finally {
       fs4.rmSync(stage, { recursive: true, force: true });
     }
@@ -32459,6 +32491,7 @@ function startLocalServer({ root: root2, port = 0 }) {
   const key = crypto6.randomBytes(24).toString("hex");
   const server2 = http.createServer();
   const open = /* @__PURE__ */ new Map();
+  const openKeys = (slug, p) => [...open.keys()].filter((k) => k.startsWith(`${slug}/${p}/`));
   const send = (res, status, body, type = "application/json") => {
     res.writeHead(status, { "content-type": type, "cache-control": "no-store", "x-content-type-options": "nosniff", "referrer-policy": "no-referrer", "content-security-policy": "default-src 'self'; style-src 'self'; script-src 'self'; media-src 'self' blob:; img-src 'self' data: blob:; frame-ancestors 'none'" });
     res.end(typeof body === "string" || Buffer.isBuffer(body) ? body : JSON.stringify(body));
@@ -32504,16 +32537,24 @@ function startLocalServer({ root: root2, port = 0 }) {
           const guidePath = path9.join(studyDir(root2, slug), "guide.md");
           const guide = fs9.existsSync(guidePath) ? fs9.readFileSync(guidePath, "utf8") : "";
           const sections = guide.split("\n").filter((l) => /^##\s/.test(l)).map((l, i) => ({ id: `sec${i + 1}`, title: l.replace(/^##\s+/, "") }));
-          return send(res, 200, { study: parsed.study.metadata.name, mediaDays: parsed.study.spec.retention.mediaDays, participant: p, consent: hasConsent(root2, slug, p), sections, already: fs9.existsSync(path9.join(sdir, "recording.json")) });
+          const recording = openKeys(slug, p).length > 0;
+          return send(res, 200, { study: parsed.study.metadata.name, mediaDays: parsed.study.spec.retention.mediaDays, participant: p, consent: hasConsent(root2, slug, p), sections, already: fs9.existsSync(path9.join(sdir, "recording.json")), recording, started_at_ms: recording ? readJson(path9.join(sdir, "session.json"), {}).started_at_ms ?? null : null });
         }
         if (!hasConsent(root2, slug, p)) return send(res, 403, { error: `No consent record for ${p}. Record consent first (consent/${p}.json).` });
         if (req.method === "POST" && action === "start") {
           if (fs9.existsSync(path9.join(sdir, "recording.json"))) return send(res, 409, { error: "This session already has a recording. Use a new participant id." });
           const b = await json(req);
+          if (!Array.isArray(b.tracks) || !b.tracks.length || !b.tracks.every((t) => t === "screen" || t === "mic") || new Set(b.tracks).size !== b.tracks.length) return send(res, 400, { error: "tracks must be screen and/or mic, each once" });
+          if (!Number.isFinite(b.started_at)) return send(res, 400, { error: "started_at must be a time in milliseconds" });
+          if (openKeys(slug, p).length) return send(res, 409, { error: `A recording is already running for ${p}. If this page was reloaded, press Stop to save what was recorded.` });
           fs9.mkdirSync(path9.join(sdir, "media"), { recursive: true });
-          writeJson(path9.join(sdir, "session.json"), { participant: p, mode: "moderated", started_at: new Date(b.started_at).toISOString(), started_at_ms: b.started_at, tracks: b.tracks, capture: b.capture });
+          const stamp = (/* @__PURE__ */ new Date()).toISOString().replace(/[:.]/g, "-");
+          for (const f of ["media/screen.webm", "media/mic.webm", "markers.json"]) {
+            const src = path9.join(sdir, f);
+            if (fs9.existsSync(src) && fs9.statSync(src).size > 0) fs9.renameSync(src, src.replace(/\.(webm|json)$/, `.partial-${stamp}.$1`));
+          }
+          writeJson(path9.join(sdir, "session.json"), { participant: p, mode: "moderated", started_at: new Date(b.started_at).toISOString(), started_at_ms: b.started_at, tracks: b.tracks, capture: String(b.capture ?? "unknown").slice(0, 40) });
           writeJson(path9.join(sdir, "markers.json"), { markers: [] });
-          if (!Array.isArray(b.tracks) || !b.tracks.length || !b.tracks.every((t) => t === "screen" || t === "mic")) return send(res, 400, { error: "tracks must be screen and/or mic" });
           for (const t of b.tracks) open.set(`${slug}/${p}/${t}`, { fd: fs9.openSync(path9.join(sdir, "media", `${t}.webm`), "w"), seq: 0 });
           appendLog(root2, slug, { skill: "run-session", event: "recording_start", participant: p });
           return send(res, 200, { ok: true });
@@ -32539,9 +32580,13 @@ function startLocalServer({ root: root2, port = 0 }) {
         }
         if (req.method === "POST" && action === "stop") {
           const b = await json(req);
+          const keys = openKeys(slug, p);
+          if (!keys.length) return send(res, 409, { error: `Nothing is recording for ${p}, so nothing was saved. If Claude Code or Cursor restarted during the call, the pieces recorded so far are in sessions/${p}/media/.` });
+          const session = readJson(path9.join(sdir, "session.json"), {});
+          const durationMs = Number.isFinite(b.duration_ms) ? b.duration_ms : Number.isFinite(session.started_at_ms) ? Date.now() - session.started_at_ms : null;
           const files = {};
-          for (const [k, o] of open) {
-            if (!k.startsWith(`${slug}/${p}/`)) continue;
+          for (const k of keys) {
+            const o = open.get(k);
             fs9.closeSync(o.fd);
             open.delete(k);
             const track = k.split("/").pop();
@@ -32551,7 +32596,7 @@ function startLocalServer({ root: root2, port = 0 }) {
             if (r.status === 0) fs9.renameSync(fixed, raw);
             files[track] = { file: `media/${track}.webm`, bytes: fs9.statSync(raw).size, sha256: sha256File(raw), pieces: o.seq, remuxed: r.status === 0 };
           }
-          writeJson(path9.join(sdir, "recording.json"), { participant: p, ended_at: (/* @__PURE__ */ new Date()).toISOString(), duration_ms: b.duration_ms, files });
+          writeJson(path9.join(sdir, "recording.json"), { participant: p, ended_at: (/* @__PURE__ */ new Date()).toISOString(), duration_ms: durationMs, files });
           const m = readJson(path9.join(sdir, "markers.json"), { markers: [] });
           const fmt = (ms) => new Date(ms).toISOString().slice(11, 19);
           fs9.writeFileSync(path9.join(sdir, "notes.md"), `# Moderator notes: ${p}
@@ -32683,7 +32728,7 @@ Each "##" section below becomes a marker you can select in the Studio.
 };
 
 // src/server.mjs
-var VERSION = "0.2.1";
+var VERSION = "0.2.2";
 var server = new McpServer({ name: "proofloop", version: VERSION });
 var ok = (data) => ({ content: [{ type: "text", text: typeof data === "string" ? data : JSON.stringify(data, null, 2) }] });
 var fail = (msg) => ({ isError: true, content: [{ type: "text", text: msg }] });
@@ -33053,14 +33098,15 @@ var insightSchema = external_exports.object({
   counter_note_ids: external_exports.array(external_exports.string()).default([]).describe("Notes where participants did or said the opposite. Strong counter-evidence lowers confidence."),
   context_relation: external_exports.object({ type: external_exports.enum(["confirms", "contradicts", "extends", "new"]), ctx_ids: external_exports.array(external_exports.string()).default([]), explanation: external_exports.string().optional() }).strict()
 }).strict();
-tool("insights_submit", 'Submit insights (pain points with severity, opportunities with a "How might we\u2026" prompt) from the reviewed board, each compared with the product context (confirms / contradicts / extends / new). Requires the board to be marked done. run 2 is the independent second run: its overlap with run 1 marks insights stable.', {
+tool("insights_submit", 'Submit insights (pain points with severity, opportunities with a "How might we\u2026" prompt) from the reviewed board, each compared with the product context (confirms / contradicts / extends / new). Requires the board to be marked done. run 2 is the independent second run: its overlap with run 1 marks insights stable. Resubmitting fixed insights merges by id, so earlier accepted ones and their review decisions are kept.', {
   folder: folderArg,
   slug: slugArg,
   run: external_exports.union([external_exports.literal(1), external_exports.literal(2)]).default(1),
   model: external_exports.string(),
   insights: external_exports.array(insightSchema).min(1),
-  open_questions: external_exports.array(external_exports.object({ question: external_exports.string().max(240), why: external_exports.string().max(400), group_ids: external_exports.array(external_exports.string()).default([]) }).strict()).max(10).default([])
-}, ({ folder, slug, run: run2, model, insights, open_questions }) => {
+  open_questions: external_exports.array(external_exports.object({ question: external_exports.string().max(240), why: external_exports.string().max(400), group_ids: external_exports.array(external_exports.string()).default([]) }).strict()).max(10).optional(),
+  replace: external_exports.boolean().default(false).describe("Replace all saved insights for this run instead of merging by id (only for a deliberate full re-run)")
+}, ({ folder, slug, run: run2, model, insights, open_questions, replace }) => {
   const r = root(folder);
   const d = studyDir(r, slug);
   const board = readJson(path10.join(d, "affinity", "board.json"));
@@ -33069,18 +33115,32 @@ tool("insights_submit", 'Submit insights (pain points with severity, opportuniti
   const ctxIds = new Set(fs10.existsSync(ctxF) ? parseContext(fs10.readFileSync(ctxF, "utf8")).items.map((i) => i.id) : []);
   const { accepted, rejected } = verifyInsights({ insights }, board);
   for (const i of accepted) for (const c of i.context_relation.ctx_ids ?? []) if (!ctxIds.has(c)) rejected.push({ id: i.id, errors: [`unknown context id ${c}`] });
-  const good = accepted.filter((i) => !rejected.some((x) => x.id === i.id)).map((i) => ({ ...i, stats: groupStats(board, { note_ids: i.note_ids }, { counterNoteIds: i.counter_note_ids ?? [] }) }));
+  const withStats = (i) => ({ ...i, stats: groupStats(board, { note_ids: i.note_ids }, { counterNoteIds: i.counter_note_ids ?? [] }) });
+  const good = accepted.filter((i) => !rejected.some((x) => x.id === i.id)).map(withStats);
+  if (!good.length) throw new Error(`Every insight was rejected, so nothing was saved:
+${rejected.map((x) => `${x.id}: ${x.errors.join("; ")}`).join("\n")}`);
   const file = path10.join(d, run2 === 1 ? "insights.json" : "insights.run2.json");
   const groupIds = new Set(board.groups.map((g) => g.id));
-  for (const q of open_questions) for (const g of q.group_ids) if (!groupIds.has(g)) throw new Error(`Open question cites unknown group ${g}`);
-  writeJson(file, { run: run2, model, created_at: (/* @__PURE__ */ new Date()).toISOString(), insights: good, open_questions });
+  for (const q of open_questions ?? []) for (const g of q.group_ids) if (!groupIds.has(g)) throw new Error(`Open question cites unknown group ${g}`);
+  const prev = readJson(file, null);
+  const prevDoc = replace || prev?.stale ? null : prev;
+  if (prev && !prevDoc) {
+    for (const f of [file, path10.join(d, "review.json")]) if (fs10.existsSync(f)) fs10.copyFileSync(f, `${f}.bak`);
+  }
+  const kept = prevDoc ? verifyInsights({ insights: prevDoc.insights.filter((i) => !good.some((g) => g.id === i.id)) }, board) : { accepted: [], rejected: [] };
+  const byId = new Map(kept.accepted.map((i) => [i.id, i]));
+  for (const i of good) byId.set(i.id, i);
+  const all = [...byId.values()].map(withStats);
+  const now = (/* @__PURE__ */ new Date()).toISOString();
+  const doc = { run: run2, model, created_at: prevDoc?.created_at ?? now, updated_at: now, insights: all, open_questions: open_questions ?? prevDoc?.open_questions ?? [] };
+  writeJson(file, doc);
   let reviewReset = [];
   if (run2 === 1) {
     const rf = path10.join(d, "review.json");
     const rv = readJson(rf, null);
     if (rv) {
-      const now = new Map(good.map((i) => [i.id, insightHash(i)]));
-      reviewReset = Object.keys(rv.decisions).filter((id) => now.get(id) !== rv.decisions[id].hash);
+      const hashes = new Map(all.map((i) => [i.id, insightHash(i)]));
+      reviewReset = Object.keys(rv.decisions).filter((id) => hashes.get(id) !== rv.decisions[id].hash);
       for (const id of reviewReset) delete rv.decisions[id];
       writeJson(rf, rv);
     }
@@ -33088,8 +33148,8 @@ tool("insights_submit", 'Submit insights (pain points with severity, opportuniti
   let stability = null;
   const other = readJson(path10.join(d, run2 === 1 ? "insights.run2.json" : "insights.json"), null);
   if (other) {
-    const primary = run2 === 1 ? good : other.insights;
-    const second = run2 === 1 ? other.insights : good;
+    const primary = (run2 === 1 ? all : other.insights).map(withStats);
+    const second = run2 === 1 ? other.insights : all;
     const jac = (x, y) => {
       const a = new Set(x);
       const inter = y.filter((n) => a.has(n)).length;
@@ -33110,11 +33170,11 @@ tool("insights_submit", 'Submit insights (pain points with severity, opportuniti
       i.stable = usedP.has(pi);
       if (!i.stable && i.stats.confidence === "high") i.stats.confidence = "medium";
     });
-    writeJson(path10.join(d, "insights.json"), { ...run2 === 1 ? { run: 1, model, open_questions } : readJson(path10.join(d, "insights.json")), insights: primary });
+    writeJson(path10.join(d, "insights.json"), { ...run2 === 1 ? doc : other, insights: primary });
     stability = { stable: primary.filter((i) => i.stable).length, unstable: primary.filter((i) => !i.stable).length };
   }
   appendLog(r, slug, { skill: "synthesise-study", step: "insights_submit", run: run2, model, accepted: good.length, rejected: rejected.length });
-  return { saved: good.length, rejected, stability, ...reviewReset.length ? { review_reset: reviewReset, note: "These insights changed since they were reviewed, so they need reviewing again." } : {}, insights: good.map((i) => ({ id: i.id, title: i.title, n_of_N: i.stats.n_of_N, confidence: i.stats.confidence, relation: i.context_relation.type })) };
+  return { saved: good.length, total: all.length, rejected, stability, ...kept.rejected.length ? { dropped: kept.rejected.map((x) => ({ id: x.id, errors: x.errors })), dropped_note: "Earlier insights that no longer match the board were removed." } : {}, ...reviewReset.length ? { review_reset: reviewReset, note: "These insights changed since they were reviewed, so they need reviewing again." } : {}, insights: good.map((i) => ({ id: i.id, title: i.title, n_of_N: i.stats.n_of_N, confidence: i.stats.confidence, relation: i.context_relation.type })) };
 });
 tool("review_record", "Record the researcher's decision on one insight: accepted, edited (with the edited fields) or rejected (with a reason). Only accepted and edited insights reach the report. Never record a decision the researcher did not make.", {
   folder: folderArg,
@@ -33294,7 +33354,7 @@ tool("cleanup", "Apply retention (delete recordings, screenshots and transcripts
     }
     appendLog(r, slug, { skill: "cleanup", participant: participant ?? null, deleted: existing.map((f) => path10.relative(r, f)) });
   }
-  return { dry_run, delete: existing.map((f) => path10.relative(r, f)), board_notes_removed: notesToDrop.length, note: notesToDrop.length ? "Board notes and quotes from this participant are removed, the board is reopened, and report.md/report.html are deleted. Insights are marked stale: re-check the board, re-run synthesis and review, then render the report again. Re-send any report copies already shared." : void 0 };
+  return { dry_run, delete: existing.map((f) => path10.relative(r, f)), board_notes_removed: notesToDrop.length, note: notesToDrop.length ? "Board notes and quotes from this participant are removed, the board is reopened, and report.md/report.html are deleted. Insights are marked stale: re-check the board, re-run synthesis (the next insights_submit starts the insights over) and review, then render the report again. Re-send any report copies already shared." : void 0 };
 });
 tool("usage_log", "Record time spent and model use for a skill run (feeds the Spike S4 time-saved measure).", {
   folder: folderArg,

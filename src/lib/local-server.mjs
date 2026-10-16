@@ -18,6 +18,7 @@ export function startLocalServer({ root, port = 0 }) {
   const key = crypto.randomBytes(24).toString('hex');
   const server = http.createServer();
   const open = new Map(); // `${study}/${p}/${track}` -> { fd, seq }
+  const openKeys = (slug, p) => [...open.keys()].filter((k) => k.startsWith(`${slug}/${p}/`));
 
   const send = (res, status, body, type = 'application/json') => {
     res.writeHead(status, { 'content-type': type, 'cache-control': 'no-store', 'x-content-type-options': 'nosniff', 'referrer-policy': 'no-referrer', 'content-security-policy': "default-src 'self'; style-src 'self'; script-src 'self'; media-src 'self' blob:; img-src 'self' data: blob:; frame-ancestors 'none'" });
@@ -61,16 +62,27 @@ export function startLocalServer({ root, port = 0 }) {
           const guidePath = path.join(studyDir(root, slug), 'guide.md');
           const guide = fs.existsSync(guidePath) ? fs.readFileSync(guidePath, 'utf8') : '';
           const sections = guide.split('\n').filter((l) => /^##\s/.test(l)).map((l, i) => ({ id: `sec${i + 1}`, title: l.replace(/^##\s+/, '') }));
-          return send(res, 200, { study: parsed.study.metadata.name, mediaDays: parsed.study.spec.retention.mediaDays, participant: p, consent: hasConsent(root, slug, p), sections, already: fs.existsSync(path.join(sdir, 'recording.json')) });
+          const recording = openKeys(slug, p).length > 0;
+          return send(res, 200, { study: parsed.study.metadata.name, mediaDays: parsed.study.spec.retention.mediaDays, participant: p, consent: hasConsent(root, slug, p), sections, already: fs.existsSync(path.join(sdir, 'recording.json')), recording, started_at_ms: recording ? readJson(path.join(sdir, 'session.json'), {}).started_at_ms ?? null : null });
         }
         if (!hasConsent(root, slug, p)) return send(res, 403, { error: `No consent record for ${p}. Record consent first (consent/${p}.json).` });
         if (req.method === 'POST' && action === 'start') {
           if (fs.existsSync(path.join(sdir, 'recording.json'))) return send(res, 409, { error: 'This session already has a recording. Use a new participant id.' });
           const b = await json(req);
+          if (!Array.isArray(b.tracks) || !b.tracks.length || !b.tracks.every((t) => t === 'screen' || t === 'mic') || new Set(b.tracks).size !== b.tracks.length) return send(res, 400, { error: 'tracks must be screen and/or mic, each once' });
+          if (!Number.isFinite(b.started_at)) return send(res, 400, { error: 'started_at must be a time in milliseconds' });
+          // A reloaded Studio page must not reopen (and so truncate) a running recording.
+          // No await between this check and open.set, so two quick starts can't both pass.
+          if (openKeys(slug, p).length) return send(res, 409, { error: `A recording is already running for ${p}. If this page was reloaded, press Stop to save what was recorded.` });
           fs.mkdirSync(path.join(sdir, 'media'), { recursive: true });
-          writeJson(path.join(sdir, 'session.json'), { participant: p, mode: 'moderated', started_at: new Date(b.started_at).toISOString(), started_at_ms: b.started_at, tracks: b.tracks, capture: b.capture });
+          // Pieces from a recording that was cut off (the plugin restarted mid-call) are kept beside the new one.
+          const stamp = new Date().toISOString().replace(/[:.]/g, '-');
+          for (const f of ['media/screen.webm', 'media/mic.webm', 'markers.json']) {
+            const src = path.join(sdir, f);
+            if (fs.existsSync(src) && fs.statSync(src).size > 0) fs.renameSync(src, src.replace(/\.(webm|json)$/, `.partial-${stamp}.$1`));
+          }
+          writeJson(path.join(sdir, 'session.json'), { participant: p, mode: 'moderated', started_at: new Date(b.started_at).toISOString(), started_at_ms: b.started_at, tracks: b.tracks, capture: String(b.capture ?? 'unknown').slice(0, 40) });
           writeJson(path.join(sdir, 'markers.json'), { markers: [] });
-          if (!Array.isArray(b.tracks) || !b.tracks.length || !b.tracks.every((t) => t === 'screen' || t === 'mic')) return send(res, 400, { error: 'tracks must be screen and/or mic' });
           for (const t of b.tracks) open.set(`${slug}/${p}/${t}`, { fd: fs.openSync(path.join(sdir, 'media', `${t}.webm`), 'w'), seq: 0 });
           appendLog(root, slug, { skill: 'run-session', event: 'recording_start', participant: p });
           return send(res, 200, { ok: true });
@@ -96,9 +108,14 @@ export function startLocalServer({ root, port = 0 }) {
         }
         if (req.method === 'POST' && action === 'stop') {
           const b = await json(req);
+          const keys = openKeys(slug, p);
+          // Nothing open (never started, or the plugin restarted mid-call): say so rather than report "saved".
+          if (!keys.length) return send(res, 409, { error: `Nothing is recording for ${p}, so nothing was saved. If Claude Code or Cursor restarted during the call, the pieces recorded so far are in sessions/${p}/media/.` });
+          const session = readJson(path.join(sdir, 'session.json'), {});
+          const durationMs = Number.isFinite(b.duration_ms) ? b.duration_ms : Number.isFinite(session.started_at_ms) ? Date.now() - session.started_at_ms : null;
           const files = {};
-          for (const [k, o] of open) {
-            if (!k.startsWith(`${slug}/${p}/`)) continue;
+          for (const k of keys) {
+            const o = open.get(k);
             fs.closeSync(o.fd);
             open.delete(k);
             const track = k.split('/').pop();
@@ -109,7 +126,7 @@ export function startLocalServer({ root, port = 0 }) {
             if (r.status === 0) fs.renameSync(fixed, raw);
             files[track] = { file: `media/${track}.webm`, bytes: fs.statSync(raw).size, sha256: sha256File(raw), pieces: o.seq, remuxed: r.status === 0 };
           }
-          writeJson(path.join(sdir, 'recording.json'), { participant: p, ended_at: new Date().toISOString(), duration_ms: b.duration_ms, files });
+          writeJson(path.join(sdir, 'recording.json'), { participant: p, ended_at: new Date().toISOString(), duration_ms: durationMs, files });
           // Notes as Markdown with timestamps, for the analysis step.
           const m = readJson(path.join(sdir, 'markers.json'), { markers: [] });
           const fmt = (ms) => new Date(ms).toISOString().slice(11, 19);

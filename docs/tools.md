@@ -206,7 +206,7 @@ Read the current affinity board with counts (n of N participants, 90% interval, 
 
 ## insights_submit
 
-Submit insights (pain points with severity, opportunities with a "How might we…" prompt) from the reviewed board, each compared with the product context (confirms / contradicts / extends / new). Requires the board to be marked done. run 2 is the independent second run: its overlap with run 1 marks insights stable.
+Submit insights (pain points with severity, opportunities with a "How might we…" prompt) from the reviewed board, each compared with the product context (confirms / contradicts / extends / new). Requires the board to be marked done. run 2 is the independent second run: its overlap with run 1 marks insights stable. Resubmitting fixed insights merges by id, so earlier accepted ones and their review decisions are kept.
 
 | Parameter | Type | Required | Notes |
 |---|---|---|---|
@@ -216,6 +216,7 @@ Submit insights (pain points with severity, opportunities with a "How might we�
 | `model` | string | yes |  |
 | `insights` | array | yes |  |
 | `open_questions` | array |  |  |
+| `replace` | boolean |  | Replace all saved insights for this run instead of merging by id (only for a deliberate full re-run) |
 
 ## review_record
 

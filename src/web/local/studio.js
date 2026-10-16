@@ -20,8 +20,9 @@
   // the silence notice has its own quieter slot so it can't hide them.
   function warn(msg) { const w = $('warn'); if (w.textContent === msg) return; w.textContent = msg; w.hidden = !msg; }
   function quiet(msg) { const q = $('quiet'); if (q.textContent !== msg) q.textContent = msg; q.hidden = !msg; }
+  let resumed = false; // page reloaded while the plugin still holds a running recording
   function ready() {
-    $('start').disabled = !(display && mic && consentOk) || recorders.length > 0;
+    $('start').disabled = !(display && mic && consentOk) || recorders.length > 0 || resumed;
     const todo = [!consentOk && 'record consent in Claude', !display && 'choose the call window', !mic && 'turn on your microphone'].filter(Boolean);
     $('start-hint').textContent = recorders.length ? '' : todo.length ? 'To start: ' + todo.join(', ') + '.' : 'Ready to record.';
   }
@@ -35,6 +36,12 @@
     $('consent').textContent = info.consent ? 'Consent is on file for ' + info.participant + '.' : 'No consent record for ' + info.participant + '. Recording stays off until consent is recorded.';
     $('consent').className = info.consent ? 'note ok' : 'note bad';
     if (info.already) warn('This participant already has a recording. Use a new participant id for a new session.');
+    if (info.recording) {
+      // The page was reloaded mid-call: the plugin still holds what was recorded.
+      resumed = true;
+      $('stop').disabled = false;
+      warn('This page was reloaded during the recording, so recording has paused. Press Stop and save to keep what was recorded so far.');
+    }
     const ul = $('sections');
     info.sections.forEach((s) => {
       const li = document.createElement('li');
@@ -76,7 +83,7 @@
         display.getTracks().forEach((t) => t.stop());
         display = null;
       } else {
-        warn('');
+        if (!resumed) warn('');
         meter(new MediaStream(display.getAudioTracks()), $('lv-sys'), (ms) => {
           if (recorders.length && ms > 10000) quiet('No sound from the participant for 10 seconds. Check they are not muted and that call audio is still shared.');
           else quiet('');
@@ -106,6 +113,8 @@
         for (let attempt = 0; attempt < 5; attempt++) {
           const r = await api('/chunk?track=' + track + '&seq=' + n, { method: 'POST', body: blob }).catch(() => null);
           if (r && r.ok) return;
+          // The first try was written but its reply was lost: the server already expects a later piece.
+          if (r && r.status === 409) { const j = await r.json().catch(() => ({})); if (j.expected > n) return; }
           await new Promise((res) => setTimeout(res, 500 * (attempt + 1)));
         }
         failed = true;
@@ -118,9 +127,11 @@
   const pick = (kinds) => kinds.find((t) => MediaRecorder.isTypeSupported(t));
 
   $('start').onclick = async () => {
-    startedAt = Date.now();
-    const r = await api('/start', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ started_at: startedAt, tracks: ['screen', 'mic'], capture: display.getVideoTracks()[0].getSettings().displaySurface || 'unknown' }) });
-    if (!r.ok) { warn((await r.json()).error); return; }
+    $('start').disabled = true; // a double click must not start two recordings
+    const t0 = Date.now();
+    const r = await api('/start', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ started_at: t0, tracks: ['screen', 'mic'], capture: display.getVideoTracks()[0].getSettings().displaySurface || 'unknown' }) }).catch(() => null);
+    if (!r || !r.ok) { warn(r ? (await r.json()).error : 'Cannot reach the plugin. Is Claude Code or Cursor still running?'); ready(); return; }
+    startedAt = t0;
     startTrack(display, 'screen', pick(['video/webm;codecs=vp9,opus', 'video/webm;codecs=vp8,opus', 'video/webm']));
     startTrack(mic, 'mic', pick(['audio/webm;codecs=opus', 'audio/webm']));
     $('rec').hidden = false;
@@ -135,13 +146,21 @@
   $('stop').onclick = async () => {
     $('stop').disabled = true;
     $('saved').textContent = 'Saving…';
-    await Promise.all(recorders.map((r) => new Promise((res) => { r.addEventListener('stop', res, { once: true }); r.stop(); })));
-    await Promise.all(Object.values(uploads));
+    // A recorder whose shared window already closed has stopped on its own;
+    // calling stop() on it again would throw and the session would never be saved.
+    try {
+      await Promise.all(recorders.filter((r) => r.state !== 'inactive').map((r) => new Promise((res) => { r.addEventListener('stop', res, { once: true }); try { r.stop(); } catch (e) { res(); } })));
+      await Promise.all(Object.values(uploads));
+    } catch (e) { failed = true; }
     [display, mic].forEach((s) => s && s.getTracks().forEach((t) => t.stop()));
-    const r = await api('/stop', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ duration_ms: Date.now() - startedAt }) });
-    const j = await r.json();
+    let r = null;
+    let j = {};
+    try {
+      r = await api('/stop', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(recorders.length ? { duration_ms: Date.now() - startedAt } : {}) });
+      j = await r.json();
+    } catch (e) { j = { error: 'Cannot reach the plugin. Is Claude Code or Cursor still running?' }; }
     $('rec').hidden = true;
-    $('saved').textContent = r.ok && !failed ? 'Saved to the study folder. You can close this page and ask Claude to analyse the session.' : 'Saved with problems: ' + (j.error || 'some pieces failed to save') + '.';
+    $('saved').textContent = r && r.ok && !failed ? 'Saved to the study folder. You can close this page and ask Claude to analyse the session.' : 'Saved with problems: ' + (j.error || 'some pieces failed to save') + '.';
   };
 
   function marker(kind, text) {

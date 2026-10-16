@@ -1,5 +1,16 @@
 # Changelog
 
+## 0.2.2
+
+Data-loss fixes from the ECC security and code review.
+
+- Fixed: pressing Stop in the Studio after the call window had stopped sharing never saved the recording. Stop now always finishes and saves.
+- Fixed: reloading the Studio page mid-call reopened the recording files and truncated them. The plugin now refuses a second Start while a recording is running, and a reloaded page offers Stop and save. Pieces left by a recording cut off when the plugin restarted are kept beside the new one (`*.partial-<time>.webm`).
+- Fixed: Stop with nothing recording reported "Saved". It now says nothing was saved.
+- Fixed: resubmitting a few corrected insights deleted the rest and every review decision. `insights_submit` now merges by id, keeps decisions on unchanged insights, re-checks kept insights against the current board, and refuses a batch where everything was rejected. `replace: true` starts over on purpose (with a `.bak` copy). After a participant is erased, the next submission starts over automatically.
+- Fixed: one malformed or unreachable participant upload stopped `relay_import` for everyone after it. Each participant now imports on its own; a failed one is reported, stays on the relay, and leaves no partial session or consent record. Relay calls time out instead of hanging.
+- The Studio no longer counts a resent piece as failed when the first send got through.
+
 ## 0.2.1
 
 - Fixed: `npm test` failed when the repo folder has a space in its path.

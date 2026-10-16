@@ -28,7 +28,7 @@ import { which } from './lib/media.mjs';
 import { mdToHtml, esc } from './lib/markdown.mjs';
 import { TEMPLATES } from './lib/templates.mjs';
 
-const VERSION = '0.2.1';
+const VERSION = '0.2.2';
 const server = new McpServer({ name: 'proofloop', version: VERSION });
 
 // ---------- helpers ----------
@@ -385,10 +385,11 @@ const insightSchema = z.object({
   context_relation: z.object({ type: z.enum(['confirms', 'contradicts', 'extends', 'new']), ctx_ids: z.array(z.string()).default([]), explanation: z.string().optional() }).strict(),
 }).strict();
 
-tool('insights_submit', 'Submit insights (pain points with severity, opportunities with a "How might we…" prompt) from the reviewed board, each compared with the product context (confirms / contradicts / extends / new). Requires the board to be marked done. run 2 is the independent second run: its overlap with run 1 marks insights stable.', {
+tool('insights_submit', 'Submit insights (pain points with severity, opportunities with a "How might we…" prompt) from the reviewed board, each compared with the product context (confirms / contradicts / extends / new). Requires the board to be marked done. run 2 is the independent second run: its overlap with run 1 marks insights stable. Resubmitting fixed insights merges by id, so earlier accepted ones and their review decisions are kept.', {
   folder: folderArg, slug: slugArg, run: z.union([z.literal(1), z.literal(2)]).default(1), model: z.string(), insights: z.array(insightSchema).min(1),
-  open_questions: z.array(z.object({ question: z.string().max(240), why: z.string().max(400), group_ids: z.array(z.string()).default([]) }).strict()).max(10).default([]),
-}, ({ folder, slug, run, model, insights, open_questions }) => {
+  open_questions: z.array(z.object({ question: z.string().max(240), why: z.string().max(400), group_ids: z.array(z.string()).default([]) }).strict()).max(10).optional(),
+  replace: z.boolean().default(false).describe('Replace all saved insights for this run instead of merging by id (only for a deliberate full re-run)'),
+}, ({ folder, slug, run, model, insights, open_questions, replace }) => {
   const r = root(folder);
   const d = studyDir(r, slug);
   const board = readJson(path.join(d, 'affinity', 'board.json'));
@@ -397,18 +398,33 @@ tool('insights_submit', 'Submit insights (pain points with severity, opportuniti
   const ctxIds = new Set(fs.existsSync(ctxF) ? parseContext(fs.readFileSync(ctxF, 'utf8')).items.map((i) => i.id) : []);
   const { accepted, rejected } = verifyInsights({ insights }, board);
   for (const i of accepted) for (const c of i.context_relation.ctx_ids ?? []) if (!ctxIds.has(c)) rejected.push({ id: i.id, errors: [`unknown context id ${c}`] });
-  const good = accepted.filter((i) => !rejected.some((x) => x.id === i.id)).map((i) => ({ ...i, stats: groupStats(board, { note_ids: i.note_ids }, { counterNoteIds: i.counter_note_ids ?? [] }) }));
+  const withStats = (i) => ({ ...i, stats: groupStats(board, { note_ids: i.note_ids }, { counterNoteIds: i.counter_note_ids ?? [] }) });
+  const good = accepted.filter((i) => !rejected.some((x) => x.id === i.id)).map(withStats);
+  if (!good.length) throw new Error(`Every insight was rejected, so nothing was saved:\n${rejected.map((x) => `${x.id}: ${x.errors.join('; ')}`).join('\n')}`);
   const file = path.join(d, run === 1 ? 'insights.json' : 'insights.run2.json');
   const groupIds = new Set(board.groups.map((g) => g.id));
-  for (const q of open_questions) for (const g of q.group_ids) if (!groupIds.has(g)) throw new Error(`Open question cites unknown group ${g}`);
-  writeJson(file, { run, model, created_at: new Date().toISOString(), insights: good, open_questions });
+  for (const q of open_questions ?? []) for (const g of q.group_ids) if (!groupIds.has(g)) throw new Error(`Open question cites unknown group ${g}`);
+  // Merge by id, like observations_submit: a resubmission of a few fixed
+  // insights must not drop the others. After a participant is erased the old
+  // file is stale and is never merged; kept insights must still pass the checker
+  // against the current board, so ones built on removed notes are dropped.
+  const prev = readJson(file, null);
+  const prevDoc = replace || prev?.stale ? null : prev;
+  if (prev && !prevDoc) for (const f of [file, path.join(d, 'review.json')]) if (fs.existsSync(f)) fs.copyFileSync(f, `${f}.bak`);
+  const kept = prevDoc ? verifyInsights({ insights: prevDoc.insights.filter((i) => !good.some((g) => g.id === i.id)) }, board) : { accepted: [], rejected: [] };
+  const byId = new Map(kept.accepted.map((i) => [i.id, i]));
+  for (const i of good) byId.set(i.id, i);
+  const all = [...byId.values()].map(withStats);
+  const now = new Date().toISOString();
+  const doc = { run, model, created_at: prevDoc?.created_at ?? now, updated_at: now, insights: all, open_questions: open_questions ?? prevDoc?.open_questions ?? [] };
+  writeJson(file, doc);
   let reviewReset = [];
   if (run === 1) {
     const rf = path.join(d, 'review.json');
     const rv = readJson(rf, null);
     if (rv) {
-      const now = new Map(good.map((i) => [i.id, insightHash(i)]));
-      reviewReset = Object.keys(rv.decisions).filter((id) => now.get(id) !== rv.decisions[id].hash);
+      const hashes = new Map(all.map((i) => [i.id, insightHash(i)]));
+      reviewReset = Object.keys(rv.decisions).filter((id) => hashes.get(id) !== rv.decisions[id].hash);
       for (const id of reviewReset) delete rv.decisions[id];
       writeJson(rf, rv);
     }
@@ -416,8 +432,9 @@ tool('insights_submit', 'Submit insights (pain points with severity, opportuniti
   let stability = null;
   const other = readJson(path.join(d, run === 1 ? 'insights.run2.json' : 'insights.json'), null);
   if (other) {
-    const primary = run === 1 ? good : other.insights;
-    const second = run === 1 ? other.insights : good;
+    // Fresh stats each time, so an insight that becomes stable gets its confidence back.
+    const primary = (run === 1 ? all : other.insights).map(withStats);
+    const second = run === 1 ? other.insights : all;
     // One-to-one matching between runs: best Jaccard overlap of notes,
     // same kind, at least 0.5 (FR-SYN-026).
     const jac = (x, y) => { const a = new Set(x); const inter = y.filter((n) => a.has(n)).length; return inter / (a.size + y.length - inter); };
@@ -431,11 +448,11 @@ tool('insights_submit', 'Submit insights (pain points with severity, opportuniti
       i.stable = usedP.has(pi);
       if (!i.stable && i.stats.confidence === 'high') i.stats.confidence = 'medium';
     });
-    writeJson(path.join(d, 'insights.json'), { ...(run === 1 ? { run: 1, model, open_questions } : readJson(path.join(d, 'insights.json'))), insights: primary });
+    writeJson(path.join(d, 'insights.json'), { ...(run === 1 ? doc : other), insights: primary });
     stability = { stable: primary.filter((i) => i.stable).length, unstable: primary.filter((i) => !i.stable).length };
   }
   appendLog(r, slug, { skill: 'synthesise-study', step: 'insights_submit', run, model, accepted: good.length, rejected: rejected.length });
-  return { saved: good.length, rejected, stability, ...(reviewReset.length ? { review_reset: reviewReset, note: 'These insights changed since they were reviewed, so they need reviewing again.' } : {}), insights: good.map((i) => ({ id: i.id, title: i.title, n_of_N: i.stats.n_of_N, confidence: i.stats.confidence, relation: i.context_relation.type })) };
+  return { saved: good.length, total: all.length, rejected, stability, ...(kept.rejected.length ? { dropped: kept.rejected.map((x) => ({ id: x.id, errors: x.errors })), dropped_note: 'Earlier insights that no longer match the board were removed.' } : {}), ...(reviewReset.length ? { review_reset: reviewReset, note: 'These insights changed since they were reviewed, so they need reviewing again.' } : {}), insights: good.map((i) => ({ id: i.id, title: i.title, n_of_N: i.stats.n_of_N, confidence: i.stats.confidence, relation: i.context_relation.type })) };
 });
 
 tool('review_record', 'Record the researcher\'s decision on one insight: accepted, edited (with the edited fields) or rejected (with a reason). Only accepted and edited insights reach the report. Never record a decision the researcher did not make.', {
@@ -596,7 +613,7 @@ tool('cleanup', 'Apply retention (delete recordings, screenshots and transcripts
     }
     appendLog(r, slug, { skill: 'cleanup', participant: participant ?? null, deleted: existing.map((f) => path.relative(r, f)) });
   }
-  return { dry_run, delete: existing.map((f) => path.relative(r, f)), board_notes_removed: notesToDrop.length, note: notesToDrop.length ? 'Board notes and quotes from this participant are removed, the board is reopened, and report.md/report.html are deleted. Insights are marked stale: re-check the board, re-run synthesis and review, then render the report again. Re-send any report copies already shared.' : undefined };
+  return { dry_run, delete: existing.map((f) => path.relative(r, f)), board_notes_removed: notesToDrop.length, note: notesToDrop.length ? 'Board notes and quotes from this participant are removed, the board is reopened, and report.md/report.html are deleted. Insights are marked stale: re-check the board, re-run synthesis (the next insights_submit starts the insights over) and review, then render the report again. Re-send any report copies already shared.' : undefined };
 });
 
 tool('usage_log', 'Record time spent and model use for a skill run (feeds the Spike S4 time-saved measure).', {

@@ -12,9 +12,19 @@ const MAX_PIECE = 25 * 1024 * 1024;
 async function call(relayUrl, adminToken, method, p, query) {
   const u = new URL(relayUrl.replace(/\/$/, '') + p);
   for (const [k, v] of Object.entries(query)) u.searchParams.set(k, v);
-  const r = await fetch(u, { method, headers: { authorization: `Bearer ${adminToken}` } });
+  const r = await fetch(u, { method, headers: { authorization: `Bearer ${adminToken}` }, signal: AbortSignal.timeout(30_000) });
   const j = await r.json().catch(() => ({}));
   if (!r.ok) throw new Error(`relay ${method} ${p}: ${r.status} ${j.error ?? ''}`);
+  return j;
+}
+
+class ImportError extends Error {}
+
+// Uploads come from participants' browsers: parse them defensively.
+function parseUpload(stage, name) {
+  let j;
+  try { j = JSON.parse(fs.readFileSync(path.join(stage, name), 'utf8')); } catch { throw new ImportError(`${name} is not valid JSON`); }
+  if (!j || typeof j !== 'object' || Array.isArray(j)) throw new ImportError(`${name} is not a JSON object`);
   return j;
 }
 
@@ -28,11 +38,12 @@ export async function importFromRelay({ root, slug, relayUrl, adminToken, includ
     if (!byP.has(p)) byP.set(p, []);
     byP.get(p).push({ ...o, name });
   }
-  const report = { imported: [], skipped: [], deleted: 0, warnings: [] };
+  const report = { imported: [], skipped: [], failed: [], deleted: 0, warnings: [] };
   for (const [p, objs] of [...byP].sort()) {
     const dir = sessionDir(root, slug, p);
     const prevRec = readJson(path.join(dir, 'recording.json'), null);
-    const studioRec = !!prevRec && prevRec.source !== 'relay';
+    // A moderated Studio session (finished or still running) keeps its own files; runner click data goes beside them.
+    const studioRec = (!!prevRec && prevRec.source !== 'relay') || readJson(path.join(dir, 'session.json'), null)?.mode === 'moderated';
     if (prevRec?.source === 'relay' || fs.existsSync(path.join(dir, 'runner-import.json'))) {
       report.warnings.push(`${p}: new uploads arrived after this session was imported. They were not imported${keepOnRelay ? '' : ' and were deleted from the relay'}. If ${p} really took part twice, give the second session a new participant id.`);
       if (!keepOnRelay) for (const o of objs) { await call(relayUrl, adminToken, 'DELETE', '/object', { study: slug, key: o.key }); report.deleted++; }
@@ -55,12 +66,27 @@ export async function importFromRelay({ root, slug, relayUrl, adminToken, includ
     try {
     for (const o of objs) {
       const { url } = await call(relayUrl, adminToken, 'GET', '/object', { study: slug, key: o.key });
-      const r = await fetch(url);
-      if (!r.ok) throw new Error(`download ${o.key} failed: ${r.status}`);
+      const r = await fetch(url, { signal: AbortSignal.timeout(300_000) });
+      if (!r.ok) throw new ImportError(`download of ${o.name} failed (${r.status})`);
       const buf = Buffer.from(await r.arrayBuffer());
-      if (o.size && buf.length !== o.size) throw new Error(`${o.key}: size ${buf.length} != ${o.size}`);
+      if (o.size && buf.length !== o.size) throw new ImportError(`${o.name} is ${buf.length} bytes, expected ${o.size}`);
       fs.writeFileSync(path.join(stage, o.name), buf);
     }
+    // Check every participant-supplied file before anything is written into
+    // the session folder, so a bad upload leaves no partial session behind.
+    const evFiles = fs.readdirSync(stage).filter((f) => /^events-\d{4}\.json$/.test(f)).sort();
+    let sessionStart = null;
+    const events = [];
+    for (const f of evFiles) {
+      const j = parseUpload(stage, f);
+      if (!Array.isArray(j.events)) throw new ImportError(`${f} has no list of events`);
+      sessionStart ??= j.session_start;
+      for (const e of j.events) events.push(e);
+    }
+    events.sort((a, b) => a.t_ms - b.t_ms);
+    const meta = fs.existsSync(path.join(stage, 'meta.json')) ? parseUpload(stage, 'meta.json') : null;
+    const doneInfo = fs.existsSync(path.join(stage, 'done.json')) ? parseUpload(stage, 'done.json') : {};
+    if (fs.existsSync(path.join(stage, 'answers.json'))) parseUpload(stage, 'answers.json');
     const files = {};
     fs.mkdirSync(path.join(dir, 'media'), { recursive: true });
     for (const track of ['screen', 'mic']) {
@@ -79,35 +105,31 @@ export async function importFromRelay({ root, slug, relayUrl, adminToken, includ
       if (missing > 0) report.warnings.push(`${p} ${track}: ${missing} piece(s) missing`);
       files[track] = { file: `media/${track}.webm`, bytes: fs.statSync(out).size, sha256: sha256File(out), pieces: chunks.length, missing_pieces: missing, duration_s: duration };
     }
-    // Events: concatenate batches in order.
-    const evFiles = fs.readdirSync(stage).filter((f) => /^events-\d{4}\.json$/.test(f)).sort();
-    let sessionStart = null;
-    const events = [];
-    for (const f of evFiles) { const j = JSON.parse(fs.readFileSync(path.join(stage, f), 'utf8')); sessionStart ??= j.session_start; events.push(...j.events); }
-    events.sort((a, b) => a.t_ms - b.t_ms);
-    if (events.length) {
-      const target = path.join(dir, fs.existsSync(path.join(dir, 'session.json')) ? 'runner-events.json' : 'events.json');
-      writeJson(target, { source: 'runner', session_start: sessionStart, events });
-    }
+    if (events.length) writeJson(path.join(dir, studioRec ? 'runner-events.json' : 'events.json'), { source: 'runner', session_start: sessionStart, events });
     if (fs.existsSync(path.join(stage, 'answers.json'))) fs.copyFileSync(path.join(stage, 'answers.json'), path.join(dir, 'answers.json'));
-    if (fs.existsSync(path.join(stage, 'meta.json'))) {
-      const meta = JSON.parse(fs.readFileSync(path.join(stage, 'meta.json'), 'utf8'));
-      if (meta.consent?.agreed) {
-        const cf = path.join(studyDir(root, slug), 'consent', `${p}.json`);
-        if (!fs.existsSync(cf)) writeJson(cf, { participant: p, agreed: true, version: meta.consent.version, at: meta.consent.at, method: 'runner-checkbox', recorded_by: 'participant' });
-      }
-      writeJson(path.join(dir, 'device.json'), { userAgent: meta.userAgent, screen: meta.screen, session_start: meta.session_start });
-    }
-    if (!fs.existsSync(path.join(dir, 'session.json'))) writeJson(path.join(dir, 'session.json'), { participant: p, mode: 'unmoderated', started_at_ms: sessionStart, started_at: sessionStart ? new Date(sessionStart).toISOString() : null });
-    const doneInfo = fs.existsSync(path.join(stage, 'done.json')) ? JSON.parse(fs.readFileSync(path.join(stage, 'done.json'), 'utf8')) : {};
+    if (meta) writeJson(path.join(dir, 'device.json'), { userAgent: meta.userAgent, screen: meta.screen, session_start: meta.session_start });
+    if (!studioRec) writeJson(path.join(dir, 'session.json'), { participant: p, mode: 'unmoderated', started_at_ms: sessionStart, started_at: sessionStart ? new Date(sessionStart).toISOString() : null });
     if (doneInfo.interrupted) report.warnings.push(`${p}: the participant's page was reloaded mid-test, so the session ends early. Tasks after that point have no result.`);
     const rec = { participant: p, imported_at: new Date().toISOString(), source: 'relay', complete: done && !doneInfo.interrupted, interrupted: !!doneInfo.interrupted, files };
     // A Studio session keeps its own recording.json; the click data import is noted beside it.
     writeJson(path.join(dir, studioRec ? 'runner-import.json' : 'recording.json'), rec);
+    // Consent last: only a session that imported cleanly gets a consent record from the runner.
+    if (meta?.consent?.agreed === true) {
+      const cf = path.join(studyDir(root, slug), 'consent', `${p}.json`);
+      if (!fs.existsSync(cf)) writeJson(cf, { participant: p, agreed: true, version: meta.consent.version, at: meta.consent.at, method: 'runner-checkbox', recorded_by: 'participant' });
+    }
     if (!keepOnRelay) {
       for (const o of objs) { await call(relayUrl, adminToken, 'DELETE', '/object', { study: slug, key: o.key }); report.deleted++; }
     }
     report.imported.push({ participant: p, complete: rec.complete, interrupted: rec.interrupted, tracks: Object.keys(files), events: events.length });
+    } catch (e) {
+      // One bad or unreachable upload must not block everyone else (the relay
+      // deletes uploads after its time limit). This one stays on the relay.
+      // Only our own messages are shown: other errors can carry local paths or
+      // text derived from the upload, which shouldn't reach the model.
+      const why = e instanceof ImportError ? e.message : `unexpected ${e.code ?? e.name ?? 'error'} while assembling it`;
+      report.failed.push(p);
+      report.warnings.push(`${p}: could not be imported (${why.slice(0, 200)}). It was left on the relay; check it there, then run relay_import again.`);
     } finally {
       fs.rmSync(stage, { recursive: true, force: true });
     }
