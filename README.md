@@ -74,8 +74,8 @@ See [examples/savings-demo](examples/savings-demo) for a complete synthetic stud
 
 - **No emotion recognition.** No facial expression or "emotion" analysis from video. Feelings are reported only in participants' own words.
 - **Recordings stay put.** Media lives in the study folder on a managed device. The short relay holds unmoderated uploads for 24 hours by default (at most 7 days) and the plugin deletes them on import.
-- **Redaction before AI.** Names, emails, AU phone numbers, card numbers (Luhn-checked), BSB, account numbers and TFNs are redacted before any transcript reaches the model; speakers become roles.
-- **Guard hook.** Claude Code and Cursor are blocked from reading media, raw transcripts or consent files, and from adding research data to git.
+- **Redaction before AI.** Names, emails, AU phone numbers, street addresses, card numbers (Luhn-checked), BSB, account numbers, Medicare numbers and TFNs are redacted from transcripts, moderator notes and typed survey answers before they reach the model; speakers become roles. Redaction is pattern-based and best-effort: names are caught only when the participant's name is on their consent record, and unusual formats (a lowercase street name, numbers spoken as words) can slip through. Treat redacted text as lower-risk, not anonymous.
+- **Guard hook.** Claude Code and Cursor are blocked from reading, writing or editing media, raw transcripts, notes or consent files (wildcards are checked against the real files), and from force-adding research data to git. The hook is a guardrail, not a sandbox: `.gitignore` and the folder's own access controls are the real protection.
 - **Consent first.** The Studio won't record without a consent record; the participant page won't start without the checkbox.
 
 More in [docs/privacy.md](docs/privacy.md) and [docs/security.md](docs/security.md).

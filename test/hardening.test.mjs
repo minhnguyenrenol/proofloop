@@ -5,6 +5,7 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
+import { spawnSync } from 'node:child_process';
 import { Client } from '@modelcontextprotocol/sdk/client/index.js';
 import { StdioClientTransport } from '@modelcontextprotocol/sdk/client/stdio.js';
 import { startLocalRelay } from '../relay/local.mjs';
@@ -166,4 +167,78 @@ test('relay import: one malformed participant does not block the others', async 
   assert.ok(!fs.existsSync(path.join(research, 'relay-bad', 'consent', 'P1.json')), 'a failed import writes no consent record');
   assert.ok(!fs.existsSync(path.join(research, 'relay-bad', 'sessions', 'P1', 'session.json')), 'and no partial session');
   assert.ok(fs.existsSync(path.join(research, 'relay-bad', 'consent', 'P2.json')));
+});
+
+test('privacy: free-text survey answers are redacted before analysis', async () => {
+  await call('study_create', { slug: 'answers-redact', name: 'Answers redaction', mode: 'moderated' });
+  await call('consent_record', { slug: 'answers-redact', participant: 'P1', method: 'written', consent_version: '1.0', recorded_by: 'Test Researcher', name: 'Priya Sharma' });
+  const dir = path.join(research, 'answers-redact', 'sessions', 'P1');
+  fs.mkdirSync(dir, { recursive: true });
+  fs.writeFileSync(path.join(dir, 'transcript.json'), JSON.stringify({ source: 'test', utterances: [{ id: 'u0001', speaker: 'P', role: 'participant', start_ms: 0, end_ms: 1000, text: 'Fine.' }] }));
+  fs.writeFileSync(path.join(dir, 'answers.json'), JSON.stringify({ answers: { t1_seq: 5, q_open: 'I am Priya Sharma, email priya@example.com, call 0412 345 678', nested: { more: ['at 12 Smith St, Fitzroy VIC 3065'] } } }));
+  const prep = await call('session_prepare', { slug: 'answers-redact', participant: 'P1' });
+  const input = fs.readFileSync(path.join(research, 'answers-redact', prep.file), 'utf8');
+  for (const leak of ['Priya', 'Sharma', 'priya@example.com', '0412 345 678', 'Smith St']) assert.ok(!input.includes(leak), `${leak} redacted`);
+  const answers = JSON.parse(input).participant_data.answers;
+  assert.equal(answers.t1_seq, 5, 'numbers untouched');
+  assert.match(answers.q_open, /\[NAME\] \[NAME\], email \[EMAIL\], call \[PHONE\]/);
+  assert.equal(prep.redactions['[EMAIL]'], 1);
+});
+
+test('privacy: setup upgrades an existing .gitignore and git ignores every participant file', async () => {
+  const gi = path.join(research, '.gitignore');
+  fs.writeFileSync(gi, '# my own rule\nscratch/\n*/sessions/*/media/\n');
+  const check = await call('setup_check', {});
+  assert.match(check.gitignore, /missing/i);
+  await call('setup_init', { path: research, location: 'laptop', confirm_managed_device: true, user_name: 'Test Researcher' });
+  const text = fs.readFileSync(gi, 'utf8');
+  assert.match(text, /^scratch\/$/m, 'user lines kept');
+  assert.equal(text.match(/^\*\/sessions\/\*\/media\/$/gm).length, 1, 'no duplicate lines');
+  assert.match((await call('setup_check', {})).gitignore, /protects/);
+  spawnSync('git', ['init', '-q'], { cwd: project });
+  const files = ['answers-redact/sessions/P1/analysis-input.json', 'answers-redact/sessions/P1/events.json', 'answers-redact/sessions/P1/runner-events.json', 'answers-redact/sessions/P1/frames.json', 'answers-redact/sessions/P1/markers.json', 'answers-redact/sessions/P1/transcript.redacted.json', 'answers-redact/.relay-seen.json', 'answers-redact/consent/external-ids.json'];
+  for (const f of files) assert.equal(spawnSync('git', ['check-ignore', '-q', path.join('research', f)], { cwd: project }).status, 0, `${f} ignored`);
+  assert.equal(spawnSync('git', ['check-ignore', '-q', 'research/answers-redact/study.yaml'], { cwd: project }).status, 1, 'study.yaml can be committed');
+
+  // Upgrade warnings: files git already tracks, and analysis inputs from older redaction.
+  const old = path.join(research, 'answers-redact', 'sessions', 'P7');
+  fs.mkdirSync(old, { recursive: true });
+  fs.writeFileSync(path.join(old, 'analysis-input.json'), JSON.stringify({ participant_data: {} }));
+  spawnSync('git', ['add', '-f', path.join('research', 'answers-redact', 'sessions', 'P7', 'analysis-input.json')], { cwd: project });
+  const after = await call('setup_check', {});
+  assert.match(after.stale_analysis_input, /answers-redact\/P7/);
+  assert.ok(!/P1/.test(after.stale_analysis_input), 'freshly prepared P1 is not stale');
+  assert.match(after.tracked_research_files, /1 research file.*git rm -r --cached/);
+  fs.rmSync(old, { recursive: true, force: true });
+  spawnSync('git', ['rm', '-q', '-r', '--cached', '.'], { cwd: project });
+});
+
+test('privacy: exports leave out moderator notes, and retention uses import time, not folder dates', async () => {
+  // studio-edge P1 has markers.json with the moderator's free-text notes.
+  const r = await call('study_export', { slug: 'studio-edge' });
+  const out = path.join(tmp, 'unpacked-edge');
+  fs.mkdirSync(out);
+  assert.equal(spawnSync('tar', ['-xzf', r.file, '-C', out]).status, 0);
+  const m = JSON.parse(fs.readFileSync(path.join(out, 'studio-edge', 'manifest.json'), 'utf8'));
+  assert.ok(!m.files.some((f) => /markers(\.partial-[^/]*)?\.json$/.test(f.path)), 'no moderator notes in the export');
+  const erase = await call('cleanup', { slug: 'studio-edge', participant: 'P2' });
+  assert.ok(erase.delete.some((f) => f.includes(path.basename(r.file))), 'erasing a participant also removes export packages that hold their data');
+
+  // A call-tool transcript imported long ago is due for cleanup even if the folder was touched today.
+  await call('consent_record', { slug: 'answers-redact', participant: 'P2', method: 'written', consent_version: '1.0', recorded_by: 'Test Researcher' });
+  const vtt = path.join(tmp, 'call.vtt');
+  fs.writeFileSync(vtt, 'WEBVTT\n\n00:00:01.000 --> 00:00:03.000\n<v P2>It was fine\n');
+  await call('session_import', { slug: 'answers-redact', participant: 'P2', transcript_path: vtt });
+  const p2 = path.join(research, 'answers-redact', 'sessions', 'P2');
+  assert.ok(!fs.existsSync(path.join(p2, 'recording.json')), 'a transcript-only import has no recording');
+  const sesF = path.join(p2, 'session.json');
+  const ses = JSON.parse(fs.readFileSync(sesF, 'utf8'));
+  assert.ok(ses.imported_at, 'import time recorded');
+  fs.writeFileSync(sesF, JSON.stringify({ ...ses, imported_at: new Date(Date.now() - 200 * 86400000).toISOString() }));
+  const dry = await call('cleanup', { slug: 'answers-redact' });
+  assert.ok(dry.delete.some((f) => f.endsWith('P2/transcript.json')), 'old import selected for cleanup');
+  assert.ok(!dry.delete.some((f) => f.includes('/P1/')), 'P1 has no import time and is new');
+  // Transcribing a transcript-only session refuses rather than overwriting the imported transcript.
+  await assert.rejects(call('session_transcribe', { slug: 'answers-redact', participant: 'P2' }), /no recording to transcribe/);
+  assert.match(fs.readFileSync(path.join(p2, 'transcript.json'), 'utf8'), /It was fine/);
 });

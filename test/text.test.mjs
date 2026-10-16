@@ -103,6 +103,26 @@ test('redaction: TFN, account, BSB, Medicare ordering', () => {
   assert.equal(redactText('ref 2123 45679 1').text, 'ref 2123 45679 1', 'bad Medicare check digit');
 });
 
+test('redaction: Australian street addresses', () => {
+  assert.equal(redactText('I live at 12 Smith St, Fitzroy VIC 3065 now').text, 'I live at [ADDRESS] now');
+  assert.equal(redactText('send it to 4/27 Queen Street please').text, 'send it to [ADDRESS] please');
+  assert.equal(redactText('Unit 3, 15A Mount Pleasant Road Then I left').text, 'Unit 3, [ADDRESS] Then I left');
+  assert.equal(redactText('we moved to Carlton North VIC 3054').text, 'we moved to [ADDRESS]');
+  assert.equal(redactText('it took 5 Minutes and 2 Steps').text, 'it took 5 Minutes and 2 Steps', 'not an address');
+  assert.equal(redactText('about 3 people in SA').text, 'about 3 people in SA');
+  assert.equal(redactText('I have 2 Google Drive folders').text, 'I have 2 Google Drive folders');
+  assert.equal(redactText('Step 3 Then Close the tab').text, 'Step 3 Then Close the tab');
+  assert.equal(redactText('In NSW 2019 I opened it').text, 'In NSW 2019 I opened it');
+  assert.equal(redactText('12 Smith St. Then left').text, '[ADDRESS]. Then left');
+  assert.equal(redactText('9 Banksia Close, Ryde NSW 2112').text, '[ADDRESS]');
+});
+
+test('redaction stays fast on long participant text', () => {
+  const t0 = Date.now();
+  for (const s of ['A'.repeat(60000), 'a'.repeat(60000), 'x@'.repeat(30000), 'Ab '.repeat(20000)]) redactText(s, ['Jo Citizen']);
+  assert.ok(Date.now() - t0 < 2000, `took ${Date.now() - t0} ms`);
+});
+
 test('redaction: Unicode names and common-word name parts', () => {
   assert.equal(redactText('Hi, José Núñez here', ['José Núñez']).text, 'Hi, [NAME] [NAME] here');
   assert.equal(redactText('JOSÉ said', ['José Núñez']).text, '[NAME] said');

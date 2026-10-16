@@ -7,11 +7,12 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import crypto from 'node:crypto';
+import { spawnSync } from 'node:child_process';
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js';
 import { z } from 'zod';
 
-import { findResearchRoot, loadConfig, saveConfig, studyDir, sessionDir, readJson, writeJson, writeText, listSessions, hasConsent, appendLog, GITIGNORE, isInside } from './lib/folder.mjs';
+import { findResearchRoot, loadConfig, saveConfig, studyDir, sessionDir, readJson, writeJson, writeText, listSessions, hasConsent, appendLog, GITIGNORE, SEARCH_IGNORE, mergeIgnore, isInside } from './lib/folder.mjs';
 import { parseStudy, lintStudy } from './lib/study.mjs';
 import { validateContext, parseContext, contextTemplate, validateChanges, applyChanges } from './lib/context.mjs';
 import { verifyObservations, verifyInsights } from './lib/verify.mjs';
@@ -26,9 +27,10 @@ import { exportStudy } from './lib/export.mjs';
 import { startLocalServer } from './lib/local-server.mjs';
 import { which } from './lib/media.mjs';
 import { mdToHtml, esc } from './lib/markdown.mjs';
+import { REDACTION_VERSION } from './lib/redact.mjs';
 import { TEMPLATES } from './lib/templates.mjs';
 
-const VERSION = '0.2.2';
+const VERSION = '0.2.3';
 const server = new McpServer({ name: 'proofloop', version: VERSION });
 
 // ---------- helpers ----------
@@ -92,6 +94,24 @@ const slugArg = z.string().regex(/^[a-z0-9-]+$/).describe('Study folder name, e.
 const pArg = z.string().regex(/^P\d{1,3}$/).describe('Participant id, e.g. P1');
 const folderArg = z.string().optional().describe('Research folder path; defaults to ./research found from the working directory');
 
+// After an upgrade: analysis inputs prepared with older redaction, and
+// research files git already tracks (adding ignore lines doesn't untrack them).
+function upgradeChecks(r) {
+  const out = {};
+  const stale = [];
+  for (const slug of fs.readdirSync(r).filter((d) => /^[a-z0-9-]+$/.test(d) && fs.existsSync(path.join(r, d, 'study.yaml')))) {
+    for (const p of listSessions(r, slug)) {
+      const f = path.join(sessionDir(r, slug, p), 'analysis-input.json');
+      if (fs.existsSync(f) && (readJson(f, {}).redaction_version ?? 1) < REDACTION_VERSION) stale.push(`${slug}/${p}`);
+    }
+  }
+  if (stale.length) out.stale_analysis_input = `Prepared before typed answers and addresses were redacted: ${stale.join(', ')}. Run session_prepare again for these before any more analysis.`;
+  const git = spawnSync('git', ['ls-files', '-ci', '--exclude-standard'], { cwd: r, encoding: 'utf8' });
+  const tracked = git.status === 0 ? git.stdout.trim().split('\n').filter(Boolean) : [];
+  if (tracked.length) out.tracked_research_files = `${tracked.length} research file(s) are already in git although they should be ignored, e.g. ${tracked.slice(0, 3).join(', ')}. Untrack them with \`git rm -r --cached <file>\` from the research folder (this keeps them on disk), then commit. They stay in git history; ask your admin if that history must be purged.`;
+  return out;
+}
+
 // ---------- setup ----------
 tool('setup_check', 'Check prerequisites for the Research Copilot: FFmpeg, local transcription (whisper.cpp), research folder location, git safety, and configuration. Run before the first study.', { folder: folderArg }, ({ folder }) => {
   const r = folder ? path.resolve(folder) : findResearchRoot(process.cwd());
@@ -108,7 +128,9 @@ tool('setup_check', 'Check prerequisites for the Research Copilot: FFmpeg, local
   };
   if (r) {
     const gi = path.join(r, '.gitignore');
-    checks.gitignore = fs.existsSync(gi) && fs.readFileSync(gi, 'utf8').includes('*/sessions/*/media/') ? 'protects recordings' : 'MISSING: recordings could be committed';
+    const { missing } = mergeIgnore(fs.existsSync(gi) ? fs.readFileSync(gi, 'utf8') : '', GITIGNORE);
+    checks.gitignore = missing.length ? `MISSING lines (participant data could be committed; run setup_init to add them): ${missing.join(', ')}` : 'protects recordings and participant data';
+    Object.assign(checks, upgradeChecks(r));
   }
   return checks;
 });
@@ -129,10 +151,13 @@ tool('setup_init', 'Create and configure the research folder. Recordings stay in
   const prev = fs.existsSync(path.join(r, '.proofloop', 'config.json')) ? loadConfig(r) : {};
   const cfg = { ...prev, version: 1, location: a.location, product_name: a.product_name ?? prev.product_name ?? null, relay_url: a.relay_url ?? prev.relay_url ?? null, runner_base_url: a.runner_base_url ?? prev.runner_base_url ?? null, whisper_model: a.whisper_model ? a.whisper_model.replace(/^~/, os.homedir()) : prev.whisper_model ?? null, model_account: a.model_account ?? prev.model_account ?? null, managed_device_confirmed_by: a.user_name, managed_device_confirmed_at: new Date().toISOString(), created_by: prev.created_by ?? a.user_name };
   saveConfig(r, cfg);
-  writeText(path.join(r, '.gitignore'), GITIGNORE);
+  // Existing ignore files keep the user's own lines; missing Proofloop lines are appended.
+  for (const [f, want] of [['.gitignore', GITIGNORE], ['.ignore', SEARCH_IGNORE]]) {
+    const p = path.join(r, f);
+    writeText(p, mergeIgnore(fs.existsSync(p) ? fs.readFileSync(p, 'utf8') : '', want).text);
+  }
   // ripgrep (the agents' search tool) honours .ignore even outside git repos.
-  writeText(path.join(r, '.ignore'), GITIGNORE);
-  const out = { folder: r, config: cfg };
+  const out = { folder: r, config: cfg, ...upgradeChecks(r) };
   // Secrets are created on the first setup, because deploying the relay
   // needs them before its URL exists. The URL is pinned when it is known.
   if (a.relay_url || !fs.existsSync(secretsPath(r))) {
@@ -303,7 +328,7 @@ tool('session_transcribe', 'Transcribe a session locally with whisper.cpp. Audio
 });
 
 // ---------- analysis ----------
-tool('session_prepare', 'Prepare one session for analysis: redact the transcript, align click data, detect behaviour signals and extract up to 20 key screenshots. Writes analysis-input.json, the only session file the model should read. The product context is deliberately left out.', { folder: folderArg, slug: slugArg, participant: pArg }, ({ folder, slug, participant }) => {
+tool('session_prepare', 'Prepare one session for analysis: redact the transcript, notes and typed answers (pattern-based, best-effort), align click data, detect behaviour signals and extract up to 20 key screenshots. Writes analysis-input.json, the only session file the model should read. The product context is deliberately left out.', { folder: folderArg, slug: slugArg, participant: pArg }, ({ folder, slug, participant }) => {
   const r = root(folder);
   return prepareSession({ root: r, slug, participant, study: loadStudy(r, slug) });
 });
@@ -571,9 +596,19 @@ tool('cleanup', 'Apply retention (delete recordings, screenshots and transcripts
     for (const p of listSessions(r, slug)) {
       const sd = sessionDir(r, slug, p);
       const rec = readJson(path.join(sd, 'recording.json'), null);
-      const when = Date.parse(rec?.ended_at ?? rec?.imported_at ?? '') || fs.statSync(sd).mtimeMs;
-      if (when < limit) for (const x of ['media', 'frames', '.incoming', 'transcript.json', 'transcript.redacted.json', 'analysis-input.json', 'answers.json', 'notes.md', 'device.json']) { const f = path.join(sd, x); if (fs.existsSync(f)) del.push(f); }
+      // Retention counts from when the session was recorded or imported. Folder
+      // dates change whenever a session is re-prepared, so they are the last resort.
+      const ses = readJson(path.join(sd, 'session.json'), {});
+      const when = Date.parse(rec?.ended_at ?? rec?.imported_at ?? ses.imported_at ?? ses.started_at ?? '') || fs.statSync(sd).mtimeMs;
+      if (when < limit) for (const x of fs.readdirSync(sd)) if (['media', 'frames', 'transcript.json', 'transcript.redacted.json', 'analysis-input.json', 'answers.json', 'notes.md', 'device.json'].includes(x) || /^markers.*\.json$|^\./.test(x)) del.push(path.join(sd, x));
     }
+  }
+  // Export packages hold raw answers (and media if included): they go with
+  // an erased participant, and once older than the retention period.
+  const exportsDir = path.join(r, '.proofloop', 'exports');
+  if (fs.existsSync(exportsDir)) {
+    const limit = Date.now() - study.spec.retention.mediaDays * 86400000;
+    for (const x of fs.readdirSync(exportsDir)) if (new RegExp(`^${slug}-\\d{8}T\\d{6}\\.tar\\.gz$`).test(x) && (participant || fs.statSync(path.join(exportsDir, x)).mtimeMs < limit)) del.push(path.join(exportsDir, x));
   }
   const existing = del.filter((f) => fs.existsSync(f) && isInside(r, f));
   const boardF = path.join(d, 'affinity', 'board.json');

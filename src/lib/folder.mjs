@@ -85,13 +85,39 @@ export function hasConsent(root, slug, participant) {
   return c.agreed === true && !c.withdrawn_at;
 }
 
-export const GITIGNORE = `# Proofloop: never commit recordings, consent records or raw transcripts.
+// For git: nothing per participant is committed (recordings, transcripts,
+// answers, events, notes, frames, analysis input). Study-level redacted
+// outputs (study.yaml, guide.md, runner/, report.md, board, insights) may be.
+export const GITIGNORE = `# Proofloop: never commit participant data, consent records or recordings.
+*/sessions/
+*/consent/*.json
+*/context/sources/
+*/.relay-seen.json
+.proofloop/secrets*
+.proofloop/exports/
+*.tmp-*
+`;
+
+// Add any missing Proofloop lines to an existing .gitignore, keeping the user's own lines.
+export function mergeIgnore(existing, wanted) {
+  const have = new Set(existing.split(/\r?\n/).map((l) => l.trim()));
+  const missing = wanted.split('\n').filter((l) => l.trim() && !l.startsWith('#') && !have.has(l.trim()));
+  if (!existing.trim()) return { text: wanted, missing };
+  return { text: missing.length ? `${existing.replace(/\s*$/, '\n')}${wanted.split('\n')[0]}\n${missing.join('\n')}\n` : existing, missing };
+}
+
+// For ripgrep (.ignore, which takes precedence over .gitignore): hide only the
+// raw files, so agents can still search the redacted ones they may read.
+// The first line re-includes sessions/, which .gitignore hides entirely.
+export const SEARCH_IGNORE = `# Proofloop search: hide raw recordings, transcripts, notes and consent records.
+!*/sessions/
 */sessions/*/media/
 */sessions/*/frames/
 */sessions/*/transcript.json
 */sessions/*/answers.json
 */sessions/*/.incoming/
 */sessions/*/notes.md
+*/sessions/*/markers*.json
 */sessions/*/device.json
 */consent/*.json
 */context/sources/

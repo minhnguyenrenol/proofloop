@@ -18,7 +18,7 @@ import { studyDir, listSessions } from './folder.mjs';
 
 const MEDIA = /^sessions\/[^/]+\/(media|frames)\/|^sessions\/[^/]+\/transcript\.json$/;
 const NEVER = [
-  /^sessions\/[^/]+\/\.incoming\//, /^sessions\/[^/]+\/notes\.md$/, /^sessions\/[^/]+\/device\.json$/,
+  /^sessions\/[^/]+\/\./, /^sessions\/[^/]+\/notes\.md$/, /^sessions\/[^/]+\/markers[^/]*\.json$/, /^sessions\/[^/]+\/device\.json$/, /^\.relay-seen\.json$/,
   /^context\/sources\//, /^runner\//, /(^|\/)\.DS_Store$/, /\.tmp-/,
 ];
 
@@ -78,6 +78,7 @@ export async function exportStudy({ root, slug, study, includeMedia = false, ver
     if (/^consent\/[^/]+\.json$/.test(rel) && rel !== 'consent/external-ids.json') {
       const c = JSON.parse(fs.readFileSync(file, 'utf8'));
       delete c.name;
+      delete c.other_names;
       const data = Buffer.from(JSON.stringify(c, null, 2) + '\n');
       entries.push({ path: `${slug}/${rel}`, data, bytes: data.length, mtime: st.mtimeMs, sha256: sha(data) });
       continue;

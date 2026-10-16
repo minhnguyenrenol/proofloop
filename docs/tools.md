@@ -152,7 +152,7 @@ Transcribe a session locally with whisper.cpp. Audio never leaves the laptop. Sp
 
 ## session_prepare
 
-Prepare one session for analysis: redact the transcript, align click data, detect behaviour signals and extract up to 20 key screenshots. Writes analysis-input.json, the only session file the model should read. The product context is deliberately left out.
+Prepare one session for analysis: redact the transcript, notes and typed answers (pattern-based, best-effort), align click data, detect behaviour signals and extract up to 20 key screenshots. Writes analysis-input.json, the only session file the model should read. The product context is deliberately left out.
 
 | Parameter | Type | Required | Notes |
 |---|---|---|---|

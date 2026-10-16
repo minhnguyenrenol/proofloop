@@ -23,8 +23,25 @@ function medicare(m) {
 
 // Order matters: keyworded rules (TFN, account) run before the bare digit
 // patterns so "account 123 456 789" is not half-eaten as a BSB.
+// Length bounds and a left anchor keep these linear on long runs of letters.
+const WORD = "(?<![A-Za-z'’-])[A-Z][A-Za-z'’-]{1,30}(?![A-Za-z'’-])";
+const STATE = '(?:NSW|VIC|QLD|SA|WA|TAS|NT|ACT)';
+// Street types that are clearly streets, and ones that are also everyday or
+// product words ("2 Google Drive folders", "Then Close the tab"): those only
+// count as an address when a suburb and state, or a postcode, follow.
+const STREET = '(?:Street|St|Road|Rd|Avenue|Ave|Crescent|Cres|Parade|Pde|Highway|Hwy|Lane|Ln|Terrace|Tce|Boulevard|Blvd|Circuit|Cct|Grove|Esplanade|Esp)';
+const STREET_WEAK = '(?:Drive|Dr|Place|Pl|Court|Ct|Way|Close|Cl|Square|Sq|Gr)';
+const NUMBER = '\\b\\d{1,5}[A-Za-z]?(?:\\s*/\\s*\\d{1,5}[A-Za-z]?)?\\s+';
+// A suburb doesn't start with a preposition ("In NSW 2019 I opened it").
+const SUBURB = `(?!(?:In|On|At|From|Since|By|Until|Before|After|During|The|My|Our|And|Then)\\b)(?:${WORD}\\s+){1,3}`;
+const TAIL = `,?\\s+${SUBURB}${STATE}(?:\\s+\\d{4})?\\b`;
 const RULES = [
-  ['[EMAIL]', /[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}/g],
+  ['[EMAIL]', /(?<![A-Za-z0-9._%+-])[A-Za-z0-9._%+-]{1,64}@[A-Za-z0-9.-]{1,253}\.[A-Za-z]{2,24}/g],
+  // Street addresses ("12 Smith St", "4/27 Queen Street, Fitzroy VIC 3065"):
+  // capitalised street names only, so best-effort. Then "Suburb STATE 1234".
+  ['[ADDRESS]', new RegExp(`${NUMBER}(?:${WORD}\\s+){1,3}${STREET}\\b(?:${TAIL})?`, 'g')],
+  ['[ADDRESS]', new RegExp(`${NUMBER}(?:${WORD}\\s+){1,3}${STREET_WEAK}\\b(?:${TAIL}|,?\\s+\\d{4}\\b)`, 'g')],
+  ['[ADDRESS]', new RegExp(`${SUBURB}${STATE}\\s+\\d{4}\\b`, 'g')],
   // Card numbers: 13–19 digits with optional spaces/dashes, Luhn-checked.
   ['[CARD]', /\b(?:\d[ -]?){12,18}\d\b/g, (m) => luhn(m.replace(/\D/g, ''))],
   // Tax file number: "TFN" or "tax file number" followed by 8–9 digits.
@@ -86,6 +103,24 @@ export function redactText(text, names = []) {
     return '[NAME]';
   });
   return { text: out, hits };
+}
+
+// Bumped when redaction covers more: 2 = typed answers, notes and addresses.
+// analysis-input.json files from an older version should be prepared again.
+export const REDACTION_VERSION = 2;
+
+// Redact every string inside a JSON value (survey answers), adding hits to totals.
+export function redactDeep(value, names = [], totals = {}) {
+  // Participant uploads can be huge; a typed answer this long isn't real input, so it is dropped, not passed through.
+  if (typeof value === 'string' && value.length > 20000) { totals['[TOO_LONG]'] = (totals['[TOO_LONG]'] || 0) + 1; return `[TOO_LONG: ${value.length} characters removed]`; }
+  if (typeof value === 'string') {
+    const { text, hits } = redactText(value, names);
+    for (const [k, v] of Object.entries(hits)) totals[k] = (totals[k] || 0) + v;
+    return text;
+  }
+  if (Array.isArray(value)) return value.map((v) => redactDeep(v, names, totals));
+  if (value && typeof value === 'object') return Object.fromEntries(Object.entries(value).map(([k, v]) => [k, redactDeep(v, names, totals)]));
+  return value;
 }
 
 export function redactTranscript(transcript, names = []) {

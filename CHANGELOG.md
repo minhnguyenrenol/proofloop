@@ -1,5 +1,16 @@
 # Changelog
 
+## 0.2.3
+
+Privacy fixes from the ECC security and code review.
+
+- Typed survey answers and moderator notes are now redacted before the model sees them, like transcripts. Street addresses are redacted too. Redaction is pattern-based and best-effort, and the docs now say so. Very long typed answers (over 20,000 characters) are dropped rather than passed through. Run `session_prepare` again for sessions prepared before this version: `setup_check` lists them.
+- `.gitignore` now ignores everything under each study's `sessions/`, plus `.relay-seen.json`. Running `setup_init` again adds missing lines to an existing `.gitignore` and keeps your own. `setup_check` lists research files git already tracks and how to untrack them.
+- Study exports leave out moderator notes (`markers.json`) and hidden temporary files, and consent records lose every name field.
+- Retention counts from when a session was recorded or imported, not from folder dates, so re-analysing a session no longer keeps its recording forever. Cleanup also removes stray temporary audio files and export packages that hold an erased participant's data, or that are older than the retention period.
+- Transcribing a session that has only an imported transcript now refuses instead of replacing it with an empty one.
+- Privacy guard: now also covers Write, Edit, MultiEdit and NotebookEdit (and Glob, Write, Edit in Cursor); expands wildcards against the real files (so `s*/P1/…` can't hide a folder name); follows `cd`, `pushd` and `git -C`; is case-insensitive; checks Grep globs, which bypass ignore files; and stops the call if it can't check it, instead of letting it through. It remains a guardrail: `.gitignore` and folder permissions are the real protection.
+
 ## 0.2.2
 
 Data-loss fixes from the ECC security and code review.

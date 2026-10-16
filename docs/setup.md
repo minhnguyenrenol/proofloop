@@ -17,7 +17,7 @@ Ask Claude "Set up ProofLoop", or call `setup_check` yourself.
 
 `setup_init` creates `./research` (or a company drive folder synced to the laptop) with:
 
-- `.gitignore` that excludes media, frames, raw transcripts, answers, consent records, source documents and secrets
+- `.gitignore` that excludes everything under each study's `sessions/` (recordings, transcripts, answers, events, notes, analysis input), consent records, source documents and secrets. Running setup again adds any missing lines to an existing `.gitignore` and keeps your own lines.
 - `.proofloop/config.json`: location, relay URL, page host, whisper model, who confirmed the device
 
 The relay secrets go to `~/.config/proofloop/<hash>.json` (mode 0600), **outside** the project, so they can't be committed.

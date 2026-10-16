@@ -13,6 +13,18 @@
       {
         "command": "node ./hooks/guard.mjs",
         "matcher": "Grep"
+      },
+      {
+        "command": "node ./hooks/guard.mjs",
+        "matcher": "Glob"
+      },
+      {
+        "command": "node ./hooks/guard.mjs",
+        "matcher": "Write"
+      },
+      {
+        "command": "node ./hooks/guard.mjs",
+        "matcher": "Edit"
       }
     ]
   }
