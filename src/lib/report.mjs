@@ -10,7 +10,7 @@ import { parseContext } from './context.mjs';
 import { esc, mdToHtml } from './markdown.mjs';
 
 export function computeInsightStats(board, insight) {
-  const s = groupStats(board, { note_ids: insight.note_ids });
+  const s = groupStats(board, { note_ids: insight.note_ids }, { counterNoteIds: insight.counter_note_ids ?? [] });
   // A finding seen in only one of two independent runs can't be high (H.5).
   if (insight.stable === false && s.confidence === 'high') s.confidence = 'medium';
   return s;
@@ -45,7 +45,7 @@ export function taskMetrics(root, slug, study) {
       outcomes[outcome]++;
       const reached = !!end && (end.reached === true || ev.some((e) => e.type === 'success_reached' && e.task_id === t.id));
       const success = selfReport ? outcome === 'completed' : reached || outcome === 'completed';
-      if (success) { ok++; if (start && end) secs.push((end.t_ms - start.t_ms) / 1000); }
+      if (success) { ok++; if (start && end && !end.no_time) secs.push((end.t_ms - start.t_ms) / 1000); }
       const a = readJson(path.join(studyDir(root, slug), 'sessions', p, 'answers.json'), null);
       const seqQ = (t.followUps ?? []).find((f) => f.type === 'seq');
       if (seqQ && Number.isFinite(a?.answers?.[seqQ.id])) seq.push(a.answers[seqQ.id]);
@@ -121,6 +121,12 @@ export function renderReport({ root, slug, study }) {
     if (i.hmw) md.push(`**${i.hmw}**`, '');
     const quotes = i.note_ids.map((n) => noteById.get(n)).filter(Boolean).flatMap((n) => (n.evidence ?? []).filter((e) => e.kind === 'quote').map((e) => ({ p: n.participant, e }))).slice(0, 4);
     for (const q of quotes) { const u = utt(q.p, q.e.utterance_ids?.[0] ?? q.e.utterance_id); md.push(`> "${q.e.quote}" (${q.p}${u ? `, ${fmtT(u.start_ms)}` : ''})`, ''); }
+    const counter = (i.counter_note_ids ?? []).map((n) => noteById.get(n)).filter(Boolean);
+    if (counter.length) {
+      md.push(`**Counter-evidence:** ${s.counter_sessions} participant${s.counter_sessions === 1 ? '' : 's'} did or said the opposite.`, '');
+      for (const n of counter.slice(0, 2)) md.push(`- ${n.text} (${n.participant})`);
+      md.push('');
+    }
     if (i.recommendation) md.push(`**Recommendation:** ${i.recommendation}`, '');
   }
   md.push('## Task results', '');
@@ -167,7 +173,7 @@ export function renderReport({ root, slug, study }) {
   }
   md.push('## Method and limits', '');
   md.push(`- Participants: ${board.n_included} (${study.spec.participants.type}). Small samples find problems well but don't measure how common they are; the ranges above show the uncertainty.`);
-  md.push(`- AI: ${study.spec.model.research}${economy ? ' (economy mode)' : ''}. ${rejectedCitations} AI observations were rejected for citations that did not match the evidence.`);
+  md.push(`- AI: ${study.spec.model.research}${economy ? ' (economy mode)' : ''}${study.spec.model.account ? `, through the approved ${study.spec.model.account} account` : ''}. ${rejectedCitations} AI observations were rejected for citations that did not match the evidence.`);
   md.push(`- Researcher changes to the AI's grouping: ${pct(agreement.notes_moved_share)} of notes were moved to a different group by the researcher (adjusted Rand index ${agreement.adjusted_rand_index.toFixed(2)} between the AI draft and the final board).`);
   md.push('- Results are not split by user segment: with fewer than 5 people per segment, differences between groups can\'t be told apart from chance.');
   md.push('- No facial expression or emotion analysis was used. Feelings are reported only in participants\' own words.');

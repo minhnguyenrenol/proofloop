@@ -7,6 +7,10 @@ description: Synthesise a study with NN/g affinity mapping - group verified note
 
 Work as a senior researcher running an affinity mapping session (NN/g method). The AI drafts; the researcher decides.
 
+## Before you start
+
+If `study.yaml` has `spec.relay`, run `relay_import` first and tell the user in one line what arrived and any warnings or lost sessions. Uploads expire on the relay, so every run is a chance to save them.
+
 ## Quality policy
 
 Claude Opus 5.5 at **xhigh** effort. Same model rule as analyse-sessions.
@@ -35,7 +39,7 @@ Claude Opus 5.5 at **xhigh** effort. Same model rule as analyse-sessions.
     - `group_ids` (and `note_ids` if only part of a group applies), up to 3 `quotes` copied exactly from those notes.
     - `context_relation`: `confirms` / `contradicts` / `extends` with the `ctx-` ids, or `new` when the pack says nothing about it. Be strict: "extends" adds detail to a statement; "contradicts" means the evidence goes against it.
     - `recommendation` (optional): a concrete, testable change.
-    - Note divergent views: if some participants did the opposite, say so in the statement.
+    - Note divergent views: if some participants did the opposite, say so in the statement and list those notes in `counter_note_ids`. Don't leave counter-evidence out to make an insight look stronger; the tool lowers confidence when it is strong (at least 2 participants and half as many as the supporting ones).
 11. Write up to 10 `open_questions`: what this study could not answer and why (nobody reached a step, participants split, a research question no task covered). Cite `group_ids` where they apply. These become "Questions for further research" and feed `plan-retest`.
 12. `insights_submit` (run 1) with the insights and open questions. The tool computes "n of N" and confidence from the board; never state counts yourself.
 13. **Independent second run.** Start a fresh subagent (Claude Code) or a new chat (Cursor) given only the board summary with notes and the context pack that writes insights without seeing run 1. Submit as `run: 2`. Insights found in both runs are marked stable; the rest can't be rated high confidence.

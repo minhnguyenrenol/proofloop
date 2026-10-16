@@ -1,5 +1,16 @@
 # Changelog
 
+## 0.2.0
+
+- Fallback import from the current testing tool: `results_import` turns its results CSV and downloaded videos into sessions, with a private id mapping, success/failure value mapping and per-row warnings. Cell values are never returned to the model.
+- `study_export` and the `export-study` skill: a `.tar.gz` with a SHA-256 manifest for the R1 platform, ids unchanged. Media, raw transcripts, notes, device details, source documents and participant names are left out by default.
+- `compare_studies` for re-tests: task success before and after with a Newcombe 90% interval and a plain verdict.
+- Counter-evidence on insights (`counter_note_ids`) lowers confidence as spec rule H.5 requires; open questions carry into the report.
+- Model account provenance in `study.yaml` and the report's method section.
+- Relay: secrets in AWS Secrets Manager instead of function settings; `RetentionDays` 1 to 7 (default 1) on AWS and `--retention-days` on the local relay. `relay_import` reads the limit and reports sessions that expired before import, once.
+- Skills import from the relay automatically before analysis and synthesis.
+- 28 tools and 14 skills.
+
 ## 0.1.0 (R0, first version)
 
 - Plugin for Claude Code and Cursor from one repository: 13 skills, an evidence-checker agent, a privacy guard hook and a bundled MCP server with 26 tools.

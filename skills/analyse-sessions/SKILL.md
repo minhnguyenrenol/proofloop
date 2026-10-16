@@ -7,6 +7,10 @@ description: Analyse each recorded session into verified observations - one idea
 
 Work as a senior usability researcher writing affinity notes. Your notes become the evidence for every finding, so each one must be something a colleague could check in the recording.
 
+## Before you start
+
+If `study.yaml` has `spec.relay`, run `relay_import` first and tell the user in one line what arrived and any warnings or lost sessions. Uploads expire on the relay, so every run is a chance to save them.
+
 ## Quality policy
 
 - Use **Claude Opus 5.5** (`claude-opus-5-5`) at **high** effort for this step. If the current model is different, stop and tell the user: research steps run on the study's research model unless they explicitly choose economy mode, which labels every output.

@@ -230,3 +230,15 @@ test('H.6 re-test comparison: Newcombe interval for a difference of proportions'
   assert.equal(w.low, 0);
   assert.ok(w.high > 0.3 && w.high < 0.4);
 });
+
+test('H.5 counter-evidence lowers confidence and must not overlap support', async () => {
+  const { verifyInsights } = await import('../src/lib/verify.mjs');
+  const notes = ['P1', 'P2', 'P3', 'P4', 'P5', 'P6'].flatMap((p) => [
+    { id: `${p}-a`, participant: p, type: 'behaviour', text: 'clicked the summary', evidence: [{ kind: 'event', event_id: 'e1' }, { kind: 'quote', quote: 'where is it' }] },
+  ]);
+  const board = { n_included: 6, notes, groups: [{ id: 'g1', label: 'x y z', note_ids: ['P1-a', 'P2-a', 'P3-a', 'P4-a'] }], themes: [], unsorted: ['P5-a', 'P6-a'] };
+  assert.equal(groupStats(board, board.groups[0]).confidence, 'high');
+  assert.equal(groupStats(board, board.groups[0], { counterNoteIds: ['P5-a', 'P6-a'] }).confidence, 'low');
+  const { rejected } = verifyInsights({ insights: [{ id: 'ins-x', kind: 'pain_point', severity: 'minor', title: 't', statement: 's', group_ids: ['g1'], counter_note_ids: ['P1-a'], context_relation: { type: 'new' } }] }, board);
+  assert.match(rejected[0].errors.join(), /both evidence and counter-evidence/);
+});

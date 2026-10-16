@@ -12,7 +12,7 @@ import { Client } from '@modelcontextprotocol/sdk/client/index.js';
 import { StdioClientTransport } from '@modelcontextprotocol/sdk/client/stdio.js';
 import { startLocalRelay } from '../relay/local.mjs';
 
-const SERVER = process.env.PROOFLOOP_SERVER ?? path.resolve('src/server.mjs');
+const SERVER = path.resolve(process.env.PROOFLOOP_SERVER ?? 'src/server.mjs');
 const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'proofloop-e2e-'));
 const home = path.join(tmp, 'home');
 const project = path.join(tmp, 'project');
@@ -44,7 +44,7 @@ function makeVideo(file, seconds) {
 test('tools are registered', async () => {
   const { tools } = await client.listTools();
   const names = tools.map((t) => t.name);
-  for (const n of ['setup_init', 'study_create', 'study_validate', 'runner_build', 'runner_links', 'relay_import', 'studio_open', 'session_prepare', 'observations_submit', 'board_create', 'board_open', 'insights_submit', 'review_record', 'context_changes_submit', 'context_apply', 'report_render', 'cleanup']) assert.ok(names.includes(n), n);
+  for (const n of ['setup_init', 'study_create', 'study_validate', 'runner_build', 'runner_links', 'relay_import', 'studio_open', 'session_prepare', 'observations_submit', 'board_create', 'board_open', 'insights_submit', 'review_record', 'context_changes_submit', 'context_apply', 'report_render', 'cleanup', 'compare_studies', 'results_import', 'study_export']) assert.ok(names.includes(n), n);
 });
 
 test('full unmoderated study: runner → relay → laptop folder → affinity → report', { skip: !hasFfmpeg && 'ffmpeg missing' }, async () => {
@@ -142,6 +142,18 @@ test('full unmoderated study: runner → relay → laptop folder → affinity �
   assert.match(imp2.warnings.join(' '), /arrived after this session was imported/);
   assert.equal(JSON.parse(fs.readFileSync(path.join(sdir, 'sessions', 'P1', 'recording.json'), 'utf8')).files.screen.sha256, sha);
   assert.ok(!fs.existsSync(path.join(sdir, 'sessions', 'P1', '.incoming')));
+
+  // A session that expires on the relay before import is reported as lost, once.
+  const [p3] = readLinks(await call('runner_links', { slug: 'savings-v1', participants: ['P3'] }));
+  const t3 = new URL(p3.url).searchParams.get('t');
+  const { url: u3 } = await (await fetch(`${relayUrl}/upload-url`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ token: t3, name: 'meta.json', size: 2 }) })).json();
+  await fetch(u3, { method: 'PUT', body: Buffer.from('{}') });
+  const imp3 = await call('relay_import', { slug: 'savings-v1' });
+  assert.deepEqual(imp3.skipped.map((x) => x.participant), ['P3']);
+  await fetch(`${relayUrl}/object?study=savings-v1&key=savings-v1/P3/meta.json`, { method: 'DELETE', headers: { authorization: `Bearer ${secrets.admin_token}` } });
+  const imp4 = await call('relay_import', { slug: 'savings-v1' });
+  assert.deepEqual(imp4.lost, ['P3']);
+  assert.deepEqual((await call('relay_import', { slug: 'savings-v1' })).lost, [], 'reported once');
 
   // Transcripts (as whisper.cpp would produce from the participant's mic).
   for (const p of ['P1', 'P2']) {
@@ -308,4 +320,63 @@ test('moderated Studio session records tracks into the folder, only with consent
   assert.ok(fs.statSync(path.join(dir, 'media', 'screen.webm')).size > 1000);
   assert.match(fs.readFileSync(path.join(dir, 'notes.md'), 'utf8'), /\[00:00:01\] \(issue\) Missed the fee link/);
   assert.equal((await api('/start', { started_at: Date.now(), tracks: ['screen'] })).status, 409, 'cannot overwrite a recording');
+});
+
+test('fallback import from the current testing tool: CSV results plus videos', { skip: !hasFfmpeg && 'ffmpeg missing' }, async () => {
+  await call('study_create', { slug: 'tool-import', name: 'Imported from the testing tool', mode: 'unmoderated' });
+  const vids = path.join(tmp, 'tool-videos');
+  fs.mkdirSync(vids);
+  makeVideo(path.join(vids, 'a.webm'), 2);
+  fs.writeFileSync(path.join(vids, 'fake.mp4'), 'not a video');
+  const sus = Array.from({ length: 10 }, (_, i) => `Q${i + 1}`);
+  const csv = path.join(tmp, 'results.csv');
+  fs.writeFileSync(csv, '﻿' + [
+    ['Tester', 'Task 1 result', 'Task 1 time', 'Task 1 ease', ...sus, 'Video'].join(','),
+    ['"jane@example.com"', 'Success', '42.5', '6', '4,2,4,2,4,2,4,2,4,2', 'a.webm'].join(','),
+    ['bob_t', 'Fail', '120', '2', ',,,,,,,,,', 'fake.mp4'].join(','),
+    ['"carol, x"', 'Maybe', '', '', ',,,,,,,,,', '../etc/passwd'].join(','),
+  ].join('\r\n') + '\r\n');
+  const args = { slug: 'tool-import', csv_path: csv, participant_column: 'Tester', tasks: [{ task_id: 't1', outcome_column: 'Task 1 result', time_column: 'Task 1 time', seq_column: 'Task 1 ease' }], sus_columns: sus, video_column: 'Video', video_dir: vids, consent_confirmed: true, consent_version: 'tool terms + notice v1' };
+  await assert.rejects(call('results_import', { ...args, participant_column: 'Email' }), /Columns not in the CSV: Email/);
+  const r = await call('results_import', args);
+  assert.equal(r.rows, 3);
+  assert.deepEqual(r.imported.map((x) => x.participant), ['P1', 'P2', 'P3']);
+  assert.equal(r.imported[0].video, true);
+  assert.equal(r.imported[1].video, false);
+  const w = r.warnings.join('\n');
+  assert.match(w, /P2.*video left out/);
+  assert.match(w, /P3.*isn't a known success or failure value/);
+  assert.match(w, /P3.*not a path/);
+  assert.ok(!JSON.stringify(r).includes('jane@example.com'), 'cell values are never returned');
+  const d = path.join(project, 'research', 'tool-import');
+  assert.equal(JSON.parse(fs.readFileSync(path.join(d, 'consent', 'external-ids.json'), 'utf8')).map['carol, x'], 'P3');
+  const ev = JSON.parse(fs.readFileSync(path.join(d, 'sessions', 'P1', 'events.json'), 'utf8')).events;
+  assert.equal(ev[1].t_ms - ev[0].t_ms, 42500);
+  assert.deepEqual(JSON.parse(fs.readFileSync(path.join(d, 'sessions', 'P1', 'answers.json'), 'utf8')).answers, { t1_seq: 6, sus: [4, 2, 4, 2, 4, 2, 4, 2, 4, 2] });
+  const again = await call('results_import', args);
+  assert.deepEqual(again.skipped, ['P1', 'P2', 'P3'], 'same ids map to the same sessions and are not imported twice');
+});
+
+test('study export keeps ids, leaves out media and names', async () => {
+  const r = await call('study_export', { slug: 'loan-interviews' });
+  assert.match(r.file, /\.proofloop\/exports\/loan-interviews-\d{8}T\d{6}\.tar\.gz$/);
+  assert.equal(r.includes_media, false);
+  assert.ok(r.left_out.media >= 1);
+  const out = path.join(tmp, 'unpacked');
+  fs.mkdirSync(out);
+  assert.equal(spawnSync('tar', ['-xzf', r.file, '-C', out]).status, 0, 'a standard tar.gz');
+  const m = JSON.parse(fs.readFileSync(path.join(out, 'loan-interviews', 'manifest.json'), 'utf8'));
+  assert.equal(m.format, 'proofloop-study-export');
+  assert.deepEqual(m.participants, ['P1']);
+  assert.ok(!m.files.some((f) => /\/media\/|notes\.md$/.test(f.path)));
+  const consent = JSON.parse(fs.readFileSync(path.join(out, 'loan-interviews', 'consent', 'P1.json'), 'utf8'));
+  assert.equal(consent.agreed, true);
+  assert.equal(consent.name, undefined, 'participant name stays on the laptop');
+  for (const f of m.files) {
+    const buf = fs.readFileSync(path.join(out, f.path));
+    assert.equal(buf.length, f.bytes, f.path);
+  }
+  const withMedia = await call('study_export', { slug: 'loan-interviews', include_media: true });
+  assert.equal(withMedia.left_out.media, 0);
+  assert.ok(fs.readFileSync(path.join(project, 'research', '.gitignore'), 'utf8').includes('.proofloop/exports/'));
 });

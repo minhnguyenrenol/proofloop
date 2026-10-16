@@ -1,21 +1,39 @@
 #!/usr/bin/env node
 // Run the relay on your own machine or an internal server, backed by a
 // folder. For pilots and tests; production uses relay/template.yaml.
-//   RELAY_SECRET=... ADMIN_TOKEN=... ALLOWED_ORIGINS=https://... node relay/local.mjs --dir ./relay-data --port 8787
+//   RELAY_SECRET=... ADMIN_TOKEN=... ALLOWED_ORIGINS=https://... node relay/local.mjs --dir ./relay-data --port 8787 [--retention-days 1]
+//   --retention-days  1-7 (default 1): how long pieces may wait before the sweep deletes them
 
 import http from 'node:http';
 import fs from 'node:fs';
 import { pathToFileURL } from 'node:url';
-import { createRelay } from './handler.mjs';
+import { createRelay, parseRetentionDays } from './handler.mjs';
 import { folderStore } from './stores.mjs';
 
-export function startLocalRelay({ dir, port = 0, secret, adminToken, allowedOrigins = ['*'], host = '127.0.0.1' }) {
+// Same rule as the S3 lifecycle: delete files older than `days` days.
+// Returns the removed paths.
+export function sweepOld(dir, days = 1, now = Date.now()) {
+  const limit = now - parseRetentionDays(days) * 86400000;
+  const removed = [];
+  const walk = (d) => {
+    if (!fs.existsSync(d)) return;
+    for (const e of fs.readdirSync(d, { withFileTypes: true })) {
+      const p = `${d}/${e.name}`;
+      if (e.isDirectory()) walk(p);
+      else if (e.isFile() && fs.statSync(p).mtimeMs < limit) { fs.rmSync(p, { force: true }); removed.push(p); }
+    }
+  };
+  walk(dir);
+  return removed;
+}
+
+export function startLocalRelay({ dir, port = 0, secret, adminToken, allowedOrigins = ['*'], host = '127.0.0.1', retentionDays = 1 }) {
   return new Promise((resolve) => {
     const server = http.createServer();
     server.listen(port, host, () => {
       const baseUrl = `http://${host}:${server.address().port}`;
       const store = folderStore({ dir, baseUrl });
-      const relay = createRelay({ store, secret, adminToken, allowedOrigins });
+      const relay = createRelay({ store, secret, adminToken, allowedOrigins, retentionDays });
       server.on('request', async (req, res) => {
         const url = new URL(req.url, baseUrl);
         const okOrigin = allowedOrigins.includes('*') || allowedOrigins.includes(req.headers.origin);
@@ -53,22 +71,20 @@ if (import.meta.url === pathToFileURL(process.argv[1] ?? '').href) {
   const arg = (n, d) => { const i = process.argv.indexOf(`--${n}`); return i > 0 ? process.argv[i + 1] : d; };
   if (!process.env.ALLOWED_ORIGINS) { console.error('Set ALLOWED_ORIGINS to the origin that hosts the participant page, e.g. https://research.example.com'); process.exit(1); }
   if (!['127.0.0.1', 'localhost', '::1'].includes(arg('host', '127.0.0.1'))) console.warn('Warning: this relay speaks plain HTTP. Put it behind HTTPS before anyone outside this machine uses it.');
+  let retentionDays;
+  try { retentionDays = parseRetentionDays(arg('retention-days', '1')); } catch (e) { console.error(`--retention-days: ${e.message}`); process.exit(1); }
+  const dir = arg('dir', './relay-data');
   const { url } = await startLocalRelay({
-    dir: arg('dir', './relay-data'),
+    dir,
     port: Number(arg('port', 8787)),
     host: arg('host', '127.0.0.1'),
     secret: process.env.RELAY_SECRET,
     adminToken: process.env.ADMIN_TOKEN,
     allowedOrigins: process.env.ALLOWED_ORIGINS.split(','),
+    retentionDays,
   });
-  console.log(`Proofloop relay listening on ${url}`);
-  // Same rule as the S3 lifecycle: nothing stays longer than a day.
-  const dir = arg('dir', './relay-data');
-  const sweep = () => {
-    const limit = Date.now() - 86400000;
-    const walk = (d) => { if (!fs.existsSync(d)) return; for (const e of fs.readdirSync(d, { withFileTypes: true })) { const p = `${d}/${e.name}`; if (e.isDirectory()) walk(p); else if (fs.statSync(p).mtimeMs < limit) fs.rmSync(p, { force: true }); } };
-    walk(dir);
-  };
+  console.log(`Proofloop relay listening on ${url} (pieces kept at most ${retentionDays} day${retentionDays === 1 ? '' : 's'})`);
+  const sweep = () => { try { sweepOld(dir, retentionDays); } catch (e) { console.error(`sweep failed: ${e.message}`); } };
   sweep();
   setInterval(sweep, 3600000).unref();
 }

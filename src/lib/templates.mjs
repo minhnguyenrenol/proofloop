@@ -33,7 +33,7 @@ spec:
     mediaDays: 90__RELAY__
   model:
     research: claude-opus-5-5
-    economyMode: false
+    economyMode: false__ACCOUNT__
   blocks:
     - id: intro
       type: instructions

@@ -14,6 +14,8 @@ test('guard blocks raw research data however the path is written', () => {
     ['Read', { file_path: 'research\\savings-v1\\sessions\\P2\\transcript.json' }],
     ['Read', { file_path: 'studies/x/consent/P3.json' }],
     ['Read', { file_path: `${S}/P1/notes.md` }],
+    ['Read', { file_path: 'research/.proofloop/exports/savings-v1-20261016T100000.tar.gz' }],
+    ['Read', { file_path: 'research/savings-v1/consent/external-ids.json' }],
     ['Read', { file_path: 'transcript.json' }, `/work/app/${S}/P1`],
     ['Grep', { pattern: '.', path: S, glob: 'transcript.json' }],
     ['Grep', { pattern: '.', path: 'research/savings-v1/consent' }],

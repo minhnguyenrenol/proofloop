@@ -21,12 +21,14 @@ import { importFromRelay, newSecret } from './lib/relay-client.mjs';
 import { importModerated, transcribeSession, prepareSession } from './lib/session.mjs';
 import { renderReport } from './lib/report.mjs';
 import { compareStudies } from './lib/compare.mjs';
+import { importResultsCsv } from './lib/csv-import.mjs';
+import { exportStudy } from './lib/export.mjs';
 import { startLocalServer } from './lib/local-server.mjs';
 import { which } from './lib/media.mjs';
 import { mdToHtml, esc } from './lib/markdown.mjs';
 import { TEMPLATES } from './lib/templates.mjs';
 
-const VERSION = '0.1.0';
+const VERSION = '0.2.0';
 const server = new McpServer({ name: 'proofloop', version: VERSION });
 
 // ---------- helpers ----------
@@ -112,11 +114,12 @@ tool('setup_init', 'Create and configure the research folder. Recordings stay in
   runner_base_url: z.string().url().optional().describe('Where participant pages are hosted, e.g. https://research.example.com/'),
   whisper_model: z.string().optional().describe('Path to a whisper.cpp model file, e.g. ~/models/ggml-large-v3-turbo.bin'),
   user_name: z.string().describe('Name of the researcher, recorded in logs and decisions'),
+  model_account: z.enum(['claude-enterprise', 'claude-team', 'api-bedrock', 'api-vertex', 'api-anthropic', 'cursor']).optional().describe('The organisation\'s approved model account in use: Claude Enterprise or Team plan, Claude API via Bedrock, Vertex or Anthropic, or Cursor with an approved Claude model'),
 }, (a) => {
   const r = path.resolve(a.path);
   fs.mkdirSync(path.join(r, '.proofloop'), { recursive: true });
   const prev = fs.existsSync(path.join(r, '.proofloop', 'config.json')) ? loadConfig(r) : {};
-  const cfg = { ...prev, version: 1, location: a.location, product_name: a.product_name ?? prev.product_name ?? null, relay_url: a.relay_url ?? prev.relay_url ?? null, runner_base_url: a.runner_base_url ?? prev.runner_base_url ?? null, whisper_model: a.whisper_model ? a.whisper_model.replace(/^~/, os.homedir()) : prev.whisper_model ?? null, managed_device_confirmed_by: a.user_name, managed_device_confirmed_at: new Date().toISOString(), created_by: prev.created_by ?? a.user_name };
+  const cfg = { ...prev, version: 1, location: a.location, product_name: a.product_name ?? prev.product_name ?? null, relay_url: a.relay_url ?? prev.relay_url ?? null, runner_base_url: a.runner_base_url ?? prev.runner_base_url ?? null, whisper_model: a.whisper_model ? a.whisper_model.replace(/^~/, os.homedir()) : prev.whisper_model ?? null, model_account: a.model_account ?? prev.model_account ?? null, managed_device_confirmed_by: a.user_name, managed_device_confirmed_at: new Date().toISOString(), created_by: prev.created_by ?? a.user_name };
   saveConfig(r, cfg);
   writeText(path.join(r, '.gitignore'), GITIGNORE);
   // ripgrep (the agents' search tool) honours .ignore even outside git repos.
@@ -149,7 +152,8 @@ tool('study_create', 'Create a study folder from templates: study.yaml, guide.md
   const d = studyDir(r, slug);
   if (fs.existsSync(path.join(d, 'study.yaml'))) throw new Error(`Study ${slug} already exists`);
   const study = TEMPLATES.study.replace(/__NAME__/g, name).replace(/__SLUG__/g, slug).replace(/__MODE__/g, mode)
-    .replace(/__LOCATION__/g, cfg.location).replace(/__PATH__/g, r).replace(/__RELAY__/g, cfg.relay_url ? `\n  relay:\n    url: ${cfg.relay_url}` : '');
+    .replace(/__LOCATION__/g, cfg.location).replace(/__PATH__/g, r).replace(/__RELAY__/g, cfg.relay_url ? `\n  relay:\n    url: ${cfg.relay_url}` : '')
+    .replace(/__ACCOUNT__/g, cfg.model_account ? `\n    account: ${cfg.model_account}` : '');
   writeText(path.join(d, 'study.yaml'), study);
   writeText(path.join(d, 'consent', 'consent.md'), TEMPLATES.consent.replace(/__NAME__/g, name));
   if (mode === 'moderated') writeText(path.join(d, 'guide.md'), TEMPLATES.guide.replace(/__NAME__/g, name));
@@ -251,6 +255,23 @@ tool('relay_import', 'Import finished unmoderated sessions (and moderated-mode c
   return importFromRelay({ root: r, slug, relayUrl: pinnedRelay(r), adminToken: readSecrets(r).admin_token, includeIncomplete: include_incomplete });
 });
 
+tool('results_import', 'Fallback import from the current testing tool: its results CSV (one row per participant) and, optionally, one video file per participant. Rows become sessions P1, P2… The tool\'s participant ids stay in a private mapping file; cell values are never returned. Only use for participants who consented in that tool to this research use.', {
+  folder: folderArg, slug: slugArg, csv_path: z.string(), participant_column: z.string().describe('Column with the tool\'s participant or session id'),
+  tasks: z.array(z.object({
+    task_id: z.string().describe('Task id in study.yaml'), outcome_column: z.string(),
+    success_values: z.array(z.string()).optional().describe('Cell values meaning success (default: success, completed, pass, yes, true, 1…)'),
+    failure_values: z.array(z.string()).optional().describe('Cell values meaning failure or gave up (default: fail, gave up, abandoned, no, false, 0…)'),
+    time_column: z.string().optional().describe('Task time in seconds'), seq_column: z.string().optional().describe('SEQ answer 1 to 7'),
+  }).strict()).min(1),
+  sus_columns: z.array(z.string()).length(10).optional().describe('The 10 SUS item columns in order, answers 1 to 5'),
+  video_column: z.string().optional().describe('Column with each participant\'s video file name'), video_dir: z.string().optional(),
+  consent_confirmed: z.literal(true).describe('The researcher confirms these participants consented in the testing tool to this use'),
+  consent_version: z.string().describe('Which consent text they agreed to, e.g. the tool\'s standard terms plus our study notice v1'),
+}, ({ folder, slug, csv_path, participant_column, tasks, sus_columns, video_column, video_dir, consent_version }) => {
+  const r = root(folder);
+  return importResultsCsv({ root: r, slug, study: loadStudy(r, slug), csvPath: path.resolve(csv_path), participantColumn: participant_column, tasks, susColumns: sus_columns, videoColumn: video_column, videoDir: video_dir && path.resolve(video_dir), consentVersion: consent_version });
+});
+
 // ---------- moderated ----------
 tool('studio_open', 'Open the Studio for a moderated session: records the call window (participant audio) and the moderator\'s microphone into the study folder, with guide markers and notes. Requires consent on file.', { folder: folderArg, slug: slugArg, participant: pArg }, async ({ folder, slug, participant }) => {
   const r = root(folder);
@@ -347,11 +368,12 @@ tool('board_summary', 'Read the current affinity board with counts (n of N parti
 });
 
 // What the researcher reviewed. If a re-run changes an insight, its old decision no longer applies.
-const insightHash = (i) => crypto.createHash('sha256').update(JSON.stringify([i.kind, i.title, i.statement, i.severity ?? null, i.hmw ?? null, i.recommendation ?? null, [...(i.note_ids ?? [])].sort(), i.context_relation])).digest('hex').slice(0, 16);
+const insightHash = (i) => crypto.createHash('sha256').update(JSON.stringify([i.kind, i.title, i.statement, i.severity ?? null, i.hmw ?? null, i.recommendation ?? null, [...(i.note_ids ?? [])].sort(), [...(i.counter_note_ids ?? [])].sort(), i.context_relation])).digest('hex').slice(0, 16);
 const insightSchema = z.object({
   id: z.string().regex(/^ins-[a-z0-9-]+$/), kind: z.enum(['pain_point', 'opportunity']), title: z.string().max(120), statement: z.string(),
   severity: z.enum(['critical', 'major', 'minor', 'cosmetic']).optional(), hmw: z.string().optional(), recommendation: z.string().optional(),
   theme_id: z.string().optional(), group_ids: z.array(z.string()).min(1), note_ids: z.array(z.string()).optional(), quotes: z.array(z.string()).optional(),
+  counter_note_ids: z.array(z.string()).default([]).describe('Notes where participants did or said the opposite. Strong counter-evidence lowers confidence.'),
   context_relation: z.object({ type: z.enum(['confirms', 'contradicts', 'extends', 'new']), ctx_ids: z.array(z.string()).default([]), explanation: z.string().optional() }).strict(),
 }).strict();
 
@@ -367,7 +389,7 @@ tool('insights_submit', 'Submit insights (pain points with severity, opportuniti
   const ctxIds = new Set(fs.existsSync(ctxF) ? parseContext(fs.readFileSync(ctxF, 'utf8')).items.map((i) => i.id) : []);
   const { accepted, rejected } = verifyInsights({ insights }, board);
   for (const i of accepted) for (const c of i.context_relation.ctx_ids ?? []) if (!ctxIds.has(c)) rejected.push({ id: i.id, errors: [`unknown context id ${c}`] });
-  const good = accepted.filter((i) => !rejected.some((x) => x.id === i.id)).map((i) => ({ ...i, stats: groupStats(board, { note_ids: i.note_ids }) }));
+  const good = accepted.filter((i) => !rejected.some((x) => x.id === i.id)).map((i) => ({ ...i, stats: groupStats(board, { note_ids: i.note_ids }, { counterNoteIds: i.counter_note_ids ?? [] }) }));
   const file = path.join(d, run === 1 ? 'insights.json' : 'insights.run2.json');
   const groupIds = new Set(board.groups.map((g) => g.id));
   for (const q of open_questions) for (const g of q.group_ids) if (!groupIds.has(g)) throw new Error(`Open question cites unknown group ${g}`);
@@ -500,6 +522,13 @@ tool('compare_studies', 'Compare task success between an earlier and a later ver
 }, ({ folder, before, after }) => {
   const r = root(folder);
   return compareStudies({ root: r, before: loadStudy(r, before), after: loadStudy(r, after) });
+});
+
+tool('study_export', 'Package a study for import into the ProofLoop platform (R1) with every id unchanged: a .tar.gz with a manifest of files and SHA-256 hashes, saved in .proofloop/exports/ (not in git). Media, frames and raw transcripts are left out unless include_media is true; session notes, device details, source documents and participant names are always left out. Ask the user before including media.', {
+  folder: folderArg, slug: slugArg, include_media: z.boolean().default(false),
+}, async ({ folder, slug, include_media }) => {
+  const r = root(folder);
+  return exportStudy({ root: r, slug, study: loadStudy(r, slug), includeMedia: include_media, version: VERSION, outDir: path.join(r, '.proofloop', 'exports') });
 });
 
 // ---------- retention ----------

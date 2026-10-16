@@ -35,26 +35,29 @@ If you'd rather record in Zoom, Meet or Teams, import the recording and its tran
 
 ## 4. Unmoderated tests: the short relay
 
-A static participant page can't save files to your laptop, so uploads go through a **short relay**: a company-owned bucket that deletes everything after 24 hours. `relay_import` downloads sessions into the study folder and deletes them from the bucket straight away.
+A static participant page can't save files to your laptop, so uploads go through a **short relay**: a company-owned bucket that deletes everything after 24 hours (configurable up to 7 days). `relay_import` downloads sessions into the study folder and deletes them from the bucket straight away.
 
 ### AWS (recommended)
 
 ```bash
 cd relay
 sam deploy --guided \
-  --parameter-overrides RelaySecret=<from secrets file> AdminToken=<from secrets file> AllowedOrigins=https://research.example.com
+  --parameter-overrides RelaySecret=<from secrets file> AdminToken=<from secrets file> AllowedOrigins=https://research.example.com \
+                        RetentionDays=1
 ```
 
-The stack creates a KMS-encrypted, private bucket with a 1-day lifecycle rule, TLS-only policy and CORS limited to your page origin, plus a Lambda function URL. Re-run `setup_init` with `relay_url` set to the function URL output.
+The stack creates a KMS-encrypted, private bucket with a lifecycle rule of `RetentionDays` (1 to 7, default 1), TLS-only policy and CORS limited to your page origin, plus a Lambda function URL. The relay secret and admin token are stored in AWS Secrets Manager and read by the function at start-up; they are not in its environment settings. Both values must be printable characters without spaces, quotes or backslashes (the generated ones are).
+
+Keep `RetentionDays` at 1 unless participants need longer to finish. `relay_import` reads the limit from the relay and tells you about any session that expired before it was imported. Re-run `setup_init` with `relay_url` set to the function URL output.
 
 ### Internal pilot
 
 ```bash
 RELAY_SECRET=... ADMIN_TOKEN=... ALLOWED_ORIGINS=https://research.example.com \
-  node relay/local.mjs --port 8787 --dir /secure/relay-data
+  node relay/local.mjs --port 8787 --dir /secure/relay-data --retention-days 1
 ```
 
-Run it on an internal server behind HTTPS. It keeps the same 24-hour deletion rule.
+Run it on an internal server behind HTTPS. It sweeps files older than the retention period every hour.
 
 ## 5. Hosting the participant page
 
@@ -89,3 +92,11 @@ Pass `whisper_model` to `setup_init`. `session_transcribe` then runs whisper.cpp
 | "not finished yet" on import | The participant is still uploading. Wait, or import with `include_incomplete` after 2 hours |
 | "close to the 24-hour relay limit" | Import now with `include_incomplete`, or the pieces will be deleted |
 | "the participant's page was reloaded mid-test" | The session ends early; tasks after that point have no result. Invite them again with a new link if needed |
+
+## Importing from the current testing tool
+
+If a study ran in the existing testing tool, export its results CSV and download the session videos to one folder. The `import-sessions` skill maps the CSV columns to the study's tasks with you, then `results_import` creates a session per row. The tool's participant ids stay in `consent/external-ids.json` (not in git, never read by the model). Only import participants who agreed in that tool to this research use.
+
+## Exporting a study for the platform
+
+The `export-study` skill runs `study_export`, which writes a `.tar.gz` to `research/.proofloop/exports/` with a manifest of every file and its SHA-256. Ids are unchanged. Media is left out unless you ask for it.

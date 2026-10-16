@@ -12,6 +12,9 @@ var __require = /* @__PURE__ */ ((x) => typeof require !== "undefined" ? require
   if (typeof require !== "undefined") return require.apply(this, arguments);
   throw Error('Dynamic require of "' + x + '" is not supported');
 });
+var __esm = (fn, res) => function __init() {
+  return fn && (res = (0, fn[__getOwnPropNames(fn)[0]])(fn = 0)), res;
+};
 var __commonJS = (cb, mod) => function __require2() {
   return mod || (0, cb[__getOwnPropNames(cb)[0]])((mod = { exports: {} }).exports, mod), mod.exports;
 };
@@ -3265,8 +3268,8 @@ var require_utils = __commonJS({
       }
       return ind;
     }
-    function removeDotSegments(path9) {
-      let input2 = path9;
+    function removeDotSegments(path11) {
+      let input2 = path11;
       const output = [];
       let nextSlash = -1;
       let len = 0;
@@ -3675,8 +3678,8 @@ var require_schemes = __commonJS({
       }
       if (wsComponent.resourceName) {
         const queryIndex = wsComponent.resourceName.indexOf("?");
-        const path9 = queryIndex === -1 ? wsComponent.resourceName : wsComponent.resourceName.slice(0, queryIndex);
-        wsComponent.path = path9 && path9 !== "/" ? path9 : void 0;
+        const path11 = queryIndex === -1 ? wsComponent.resourceName : wsComponent.resourceName.slice(0, queryIndex);
+        wsComponent.path = path11 && path11 !== "/" ? path11 : void 0;
         wsComponent.query = queryIndex === -1 ? void 0 : wsComponent.resourceName.slice(queryIndex + 1);
         wsComponent.resourceName = void 0;
       }
@@ -7189,12 +7192,12 @@ var require_dist = __commonJS({
         throw new Error(`Unknown format "${name}"`);
       return f;
     };
-    function addFormats(ajv, list, fs9, exportName) {
+    function addFormats(ajv, list, fs11, exportName) {
       var _a2;
       var _b2;
       (_a2 = (_b2 = ajv.opts.code).formats) !== null && _a2 !== void 0 ? _a2 : _b2.formats = (0, codegen_1._)`require("ajv-formats/dist/formats").${exportName}`;
       for (const f of list)
-        ajv.addFormat(f, fs9[f]);
+        ajv.addFormat(f, fs11[f]);
     }
     module.exports = exports = formatsPlugin;
     Object.defineProperty(exports, "__esModule", { value: true });
@@ -7279,17 +7282,17 @@ var require_visit = __commonJS({
     visit.BREAK = BREAK;
     visit.SKIP = SKIP;
     visit.REMOVE = REMOVE;
-    function visit_(key, node, visitor, path9) {
-      const ctrl = callVisitor(key, node, visitor, path9);
+    function visit_(key, node, visitor, path11) {
+      const ctrl = callVisitor(key, node, visitor, path11);
       if (identity.isNode(ctrl) || identity.isPair(ctrl)) {
-        replaceNode(key, path9, ctrl);
-        return visit_(key, ctrl, visitor, path9);
+        replaceNode(key, path11, ctrl);
+        return visit_(key, ctrl, visitor, path11);
       }
       if (typeof ctrl !== "symbol") {
         if (identity.isCollection(node)) {
-          path9 = Object.freeze(path9.concat(node));
+          path11 = Object.freeze(path11.concat(node));
           for (let i = 0; i < node.items.length; ++i) {
-            const ci = visit_(i, node.items[i], visitor, path9);
+            const ci = visit_(i, node.items[i], visitor, path11);
             if (typeof ci === "number")
               i = ci - 1;
             else if (ci === BREAK)
@@ -7300,13 +7303,13 @@ var require_visit = __commonJS({
             }
           }
         } else if (identity.isPair(node)) {
-          path9 = Object.freeze(path9.concat(node));
-          const ck = visit_("key", node.key, visitor, path9);
+          path11 = Object.freeze(path11.concat(node));
+          const ck = visit_("key", node.key, visitor, path11);
           if (ck === BREAK)
             return BREAK;
           else if (ck === REMOVE)
             node.key = null;
-          const cv = visit_("value", node.value, visitor, path9);
+          const cv = visit_("value", node.value, visitor, path11);
           if (cv === BREAK)
             return BREAK;
           else if (cv === REMOVE)
@@ -7327,17 +7330,17 @@ var require_visit = __commonJS({
     visitAsync.BREAK = BREAK;
     visitAsync.SKIP = SKIP;
     visitAsync.REMOVE = REMOVE;
-    async function visitAsync_(key, node, visitor, path9) {
-      const ctrl = await callVisitor(key, node, visitor, path9);
+    async function visitAsync_(key, node, visitor, path11) {
+      const ctrl = await callVisitor(key, node, visitor, path11);
       if (identity.isNode(ctrl) || identity.isPair(ctrl)) {
-        replaceNode(key, path9, ctrl);
-        return visitAsync_(key, ctrl, visitor, path9);
+        replaceNode(key, path11, ctrl);
+        return visitAsync_(key, ctrl, visitor, path11);
       }
       if (typeof ctrl !== "symbol") {
         if (identity.isCollection(node)) {
-          path9 = Object.freeze(path9.concat(node));
+          path11 = Object.freeze(path11.concat(node));
           for (let i = 0; i < node.items.length; ++i) {
-            const ci = await visitAsync_(i, node.items[i], visitor, path9);
+            const ci = await visitAsync_(i, node.items[i], visitor, path11);
             if (typeof ci === "number")
               i = ci - 1;
             else if (ci === BREAK)
@@ -7348,13 +7351,13 @@ var require_visit = __commonJS({
             }
           }
         } else if (identity.isPair(node)) {
-          path9 = Object.freeze(path9.concat(node));
-          const ck = await visitAsync_("key", node.key, visitor, path9);
+          path11 = Object.freeze(path11.concat(node));
+          const ck = await visitAsync_("key", node.key, visitor, path11);
           if (ck === BREAK)
             return BREAK;
           else if (ck === REMOVE)
             node.key = null;
-          const cv = await visitAsync_("value", node.value, visitor, path9);
+          const cv = await visitAsync_("value", node.value, visitor, path11);
           if (cv === BREAK)
             return BREAK;
           else if (cv === REMOVE)
@@ -7381,23 +7384,23 @@ var require_visit = __commonJS({
       }
       return visitor;
     }
-    function callVisitor(key, node, visitor, path9) {
+    function callVisitor(key, node, visitor, path11) {
       if (typeof visitor === "function")
-        return visitor(key, node, path9);
+        return visitor(key, node, path11);
       if (identity.isMap(node))
-        return visitor.Map?.(key, node, path9);
+        return visitor.Map?.(key, node, path11);
       if (identity.isSeq(node))
-        return visitor.Seq?.(key, node, path9);
+        return visitor.Seq?.(key, node, path11);
       if (identity.isPair(node))
-        return visitor.Pair?.(key, node, path9);
+        return visitor.Pair?.(key, node, path11);
       if (identity.isScalar(node))
-        return visitor.Scalar?.(key, node, path9);
+        return visitor.Scalar?.(key, node, path11);
       if (identity.isAlias(node))
-        return visitor.Alias?.(key, node, path9);
+        return visitor.Alias?.(key, node, path11);
       return void 0;
     }
-    function replaceNode(key, path9, node) {
-      const parent = path9[path9.length - 1];
+    function replaceNode(key, path11, node) {
+      const parent = path11[path11.length - 1];
       if (identity.isCollection(parent)) {
         parent.items[key] = node;
       } else if (identity.isPair(parent)) {
@@ -8005,10 +8008,10 @@ var require_Collection = __commonJS({
     var createNode = require_createNode();
     var identity = require_identity();
     var Node = require_Node();
-    function collectionFromPath(schema, path9, value) {
+    function collectionFromPath(schema, path11, value) {
       let v = value;
-      for (let i = path9.length - 1; i >= 0; --i) {
-        const k = path9[i];
+      for (let i = path11.length - 1; i >= 0; --i) {
+        const k = path11[i];
         if (typeof k === "number" && Number.isInteger(k) && k >= 0) {
           const a = [];
           a[k] = v;
@@ -8027,7 +8030,7 @@ var require_Collection = __commonJS({
         sourceObjects: /* @__PURE__ */ new Map()
       });
     }
-    var isEmptyPath = (path9) => path9 == null || typeof path9 === "object" && !!path9[Symbol.iterator]().next().done;
+    var isEmptyPath = (path11) => path11 == null || typeof path11 === "object" && !!path11[Symbol.iterator]().next().done;
     var Collection = class extends Node.NodeBase {
       constructor(type, schema) {
         super(type);
@@ -8057,11 +8060,11 @@ var require_Collection = __commonJS({
        * be a Pair instance or a `{ key, value }` object, which may not have a key
        * that already exists in the map.
        */
-      addIn(path9, value) {
-        if (isEmptyPath(path9))
+      addIn(path11, value) {
+        if (isEmptyPath(path11))
           this.add(value);
         else {
-          const [key, ...rest] = path9;
+          const [key, ...rest] = path11;
           const node = this.get(key, true);
           if (identity.isCollection(node))
             node.addIn(rest, value);
@@ -8075,8 +8078,8 @@ var require_Collection = __commonJS({
        * Removes a value from the collection.
        * @returns `true` if the item was found and removed.
        */
-      deleteIn(path9) {
-        const [key, ...rest] = path9;
+      deleteIn(path11) {
+        const [key, ...rest] = path11;
         if (rest.length === 0)
           return this.delete(key);
         const node = this.get(key, true);
@@ -8090,8 +8093,8 @@ var require_Collection = __commonJS({
        * scalar values from their surrounding node; to disable set `keepScalar` to
        * `true` (collections are always returned intact).
        */
-      getIn(path9, keepScalar) {
-        const [key, ...rest] = path9;
+      getIn(path11, keepScalar) {
+        const [key, ...rest] = path11;
         const node = this.get(key, true);
         if (rest.length === 0)
           return !keepScalar && identity.isScalar(node) ? node.value : node;
@@ -8109,8 +8112,8 @@ var require_Collection = __commonJS({
       /**
        * Checks if the collection includes a value with the key `key`.
        */
-      hasIn(path9) {
-        const [key, ...rest] = path9;
+      hasIn(path11) {
+        const [key, ...rest] = path11;
         if (rest.length === 0)
           return this.has(key);
         const node = this.get(key, true);
@@ -8120,8 +8123,8 @@ var require_Collection = __commonJS({
        * Sets a value in this collection. For `!!set`, `value` needs to be a
        * boolean to add/remove the item from the set.
        */
-      setIn(path9, value) {
-        const [key, ...rest] = path9;
+      setIn(path11, value) {
+        const [key, ...rest] = path11;
         if (rest.length === 0) {
           this.set(key, value);
         } else {
@@ -10625,9 +10628,9 @@ var require_Document = __commonJS({
           this.contents.add(value);
       }
       /** Adds a value to the document. */
-      addIn(path9, value) {
+      addIn(path11, value) {
         if (assertCollection(this.contents))
-          this.contents.addIn(path9, value);
+          this.contents.addIn(path11, value);
       }
       /**
        * Create a new `Alias` node, ensuring that the target `node` has the required anchor.
@@ -10702,14 +10705,14 @@ var require_Document = __commonJS({
        * Removes a value from the document.
        * @returns `true` if the item was found and removed.
        */
-      deleteIn(path9) {
-        if (Collection.isEmptyPath(path9)) {
+      deleteIn(path11) {
+        if (Collection.isEmptyPath(path11)) {
           if (this.contents == null)
             return false;
           this.contents = null;
           return true;
         }
-        return assertCollection(this.contents) ? this.contents.deleteIn(path9) : false;
+        return assertCollection(this.contents) ? this.contents.deleteIn(path11) : false;
       }
       /**
        * Returns item at `key`, or `undefined` if not found. By default unwraps
@@ -10724,10 +10727,10 @@ var require_Document = __commonJS({
        * scalar values from their surrounding node; to disable set `keepScalar` to
        * `true` (collections are always returned intact).
        */
-      getIn(path9, keepScalar) {
-        if (Collection.isEmptyPath(path9))
+      getIn(path11, keepScalar) {
+        if (Collection.isEmptyPath(path11))
           return !keepScalar && identity.isScalar(this.contents) ? this.contents.value : this.contents;
-        return identity.isCollection(this.contents) ? this.contents.getIn(path9, keepScalar) : void 0;
+        return identity.isCollection(this.contents) ? this.contents.getIn(path11, keepScalar) : void 0;
       }
       /**
        * Checks if the document includes a value with the key `key`.
@@ -10738,10 +10741,10 @@ var require_Document = __commonJS({
       /**
        * Checks if the document includes a value at `path`.
        */
-      hasIn(path9) {
-        if (Collection.isEmptyPath(path9))
+      hasIn(path11) {
+        if (Collection.isEmptyPath(path11))
           return this.contents !== void 0;
-        return identity.isCollection(this.contents) ? this.contents.hasIn(path9) : false;
+        return identity.isCollection(this.contents) ? this.contents.hasIn(path11) : false;
       }
       /**
        * Sets a value in this document. For `!!set`, `value` needs to be a
@@ -10758,13 +10761,13 @@ var require_Document = __commonJS({
        * Sets a value in this document. For `!!set`, `value` needs to be a
        * boolean to add/remove the item from the set.
        */
-      setIn(path9, value) {
-        if (Collection.isEmptyPath(path9)) {
+      setIn(path11, value) {
+        if (Collection.isEmptyPath(path11)) {
           this.contents = value;
         } else if (this.contents == null) {
-          this.contents = Collection.collectionFromPath(this.schema, Array.from(path9), value);
+          this.contents = Collection.collectionFromPath(this.schema, Array.from(path11), value);
         } else if (assertCollection(this.contents)) {
-          this.contents.setIn(path9, value);
+          this.contents.setIn(path11, value);
         }
       }
       /**
@@ -12716,9 +12719,9 @@ var require_cst_visit = __commonJS({
     visit.BREAK = BREAK;
     visit.SKIP = SKIP;
     visit.REMOVE = REMOVE;
-    visit.itemAtPath = (cst, path9) => {
+    visit.itemAtPath = (cst, path11) => {
       let item = cst;
-      for (const [field, index] of path9) {
+      for (const [field, index] of path11) {
         const tok = item?.[field];
         if (tok && "items" in tok) {
           item = tok.items[index];
@@ -12727,23 +12730,23 @@ var require_cst_visit = __commonJS({
       }
       return item;
     };
-    visit.parentCollection = (cst, path9) => {
-      const parent = visit.itemAtPath(cst, path9.slice(0, -1));
-      const field = path9[path9.length - 1][0];
+    visit.parentCollection = (cst, path11) => {
+      const parent = visit.itemAtPath(cst, path11.slice(0, -1));
+      const field = path11[path11.length - 1][0];
       const coll = parent?.[field];
       if (coll && "items" in coll)
         return coll;
       throw new Error("Parent collection not found");
     };
-    function _visit(path9, item, visitor) {
-      let ctrl = visitor(item, path9);
+    function _visit(path11, item, visitor) {
+      let ctrl = visitor(item, path11);
       if (typeof ctrl === "symbol")
         return ctrl;
       for (const field of ["key", "value"]) {
         const token = item[field];
         if (token && "items" in token) {
           for (let i = 0; i < token.items.length; ++i) {
-            const ci = _visit(Object.freeze(path9.concat([[field, i]])), token.items[i], visitor);
+            const ci = _visit(Object.freeze(path11.concat([[field, i]])), token.items[i], visitor);
             if (typeof ci === "number")
               i = ci - 1;
             else if (ci === BREAK)
@@ -12754,10 +12757,10 @@ var require_cst_visit = __commonJS({
             }
           }
           if (typeof ctrl === "function" && field === "key")
-            ctrl = ctrl(item, path9);
+            ctrl = ctrl(item, path11);
         }
       }
-      return typeof ctrl === "function" ? ctrl(item, path9) : ctrl;
+      return typeof ctrl === "function" ? ctrl(item, path11) : ctrl;
     }
     exports.visit = visit;
   }
@@ -14042,14 +14045,14 @@ var require_parser = __commonJS({
             case "scalar":
             case "single-quoted-scalar":
             case "double-quoted-scalar": {
-              const fs9 = this.flowScalar(this.type);
+              const fs11 = this.flowScalar(this.type);
               if (atNextItem || it.value) {
-                map.items.push({ start, key: fs9, sep: [] });
+                map.items.push({ start, key: fs11, sep: [] });
                 this.onKeyLine = true;
               } else if (it.sep) {
-                this.stack.push(fs9);
+                this.stack.push(fs11);
               } else {
-                Object.assign(it, { key: fs9, sep: [] });
+                Object.assign(it, { key: fs11, sep: [] });
                 this.onKeyLine = true;
               }
               return;
@@ -14177,13 +14180,13 @@ var require_parser = __commonJS({
             case "scalar":
             case "single-quoted-scalar":
             case "double-quoted-scalar": {
-              const fs9 = this.flowScalar(this.type);
+              const fs11 = this.flowScalar(this.type);
               if (!it || it.value)
-                fc.items.push({ start: [], key: fs9, sep: [] });
+                fc.items.push({ start: [], key: fs11, sep: [] });
               else if (it.sep)
-                this.stack.push(fs9);
+                this.stack.push(fs11);
               else
-                Object.assign(it, { key: fs9, sep: [] });
+                Object.assign(it, { key: fs11, sep: [] });
               return;
             }
             case "flow-map-end":
@@ -14491,11 +14494,17 @@ var require_dist2 = __commonJS({
   }
 });
 
+// relay/sigv4.mjs
+var init_sigv4 = __esm({
+  "relay/sigv4.mjs"() {
+  }
+});
+
 // src/server.mjs
-import fs8 from "node:fs";
+import fs10 from "node:fs";
 import os from "node:os";
-import path8 from "node:path";
-import crypto6 from "node:crypto";
+import path10 from "node:path";
+import crypto7 from "node:crypto";
 
 // node_modules/zod/v3/external.js
 var external_exports = {};
@@ -14975,8 +14984,8 @@ function getErrorMap() {
 
 // node_modules/zod/v3/helpers/parseUtil.js
 var makeIssue = (params) => {
-  const { data, path: path9, errorMaps, issueData } = params;
-  const fullPath = [...path9, ...issueData.path || []];
+  const { data, path: path11, errorMaps, issueData } = params;
+  const fullPath = [...path11, ...issueData.path || []];
   const fullIssue = {
     ...issueData,
     path: fullPath
@@ -15092,11 +15101,11 @@ var errorUtil;
 
 // node_modules/zod/v3/types.js
 var ParseInputLazyPath = class {
-  constructor(parent, value, path9, key) {
+  constructor(parent, value, path11, key) {
     this._cachedPath = [];
     this.parent = parent;
     this.data = value;
-    this._path = path9;
+    this._path = path11;
     this._key = key;
   }
   get path() {
@@ -18734,10 +18743,10 @@ function assignProp(target, prop, value) {
     configurable: true
   });
 }
-function getElementAtPath(obj, path9) {
-  if (!path9)
+function getElementAtPath(obj, path11) {
+  if (!path11)
     return obj;
-  return path9.reduce((acc, key) => acc?.[key], obj);
+  return path11.reduce((acc, key) => acc?.[key], obj);
 }
 function promiseAllObject(promisesObj) {
   const keys = Object.keys(promisesObj);
@@ -19057,11 +19066,11 @@ function aborted(x, startIndex = 0) {
   }
   return false;
 }
-function prefixIssues(path9, issues) {
+function prefixIssues(path11, issues) {
   return issues.map((iss) => {
     var _a2;
     (_a2 = iss).path ?? (_a2.path = []);
-    iss.path.unshift(path9);
+    iss.path.unshift(path11);
     return iss;
   });
 }
@@ -21557,13 +21566,13 @@ function _array(Class2, element, params) {
   });
 }
 function _custom(Class2, fn, _params) {
-  const norm = normalizeParams(_params);
-  norm.abort ?? (norm.abort = true);
+  const norm2 = normalizeParams(_params);
+  norm2.abort ?? (norm2.abort = true);
   const schema = new Class2({
     type: "custom",
     check: "custom",
     fn,
-    ...norm
+    ...norm2
   });
   return schema;
 }
@@ -22474,11 +22483,11 @@ function normalizeObjectSchema(schema) {
   }
   return void 0;
 }
-function getDotPath(path9) {
-  if (path9.length === 0) {
+function getDotPath(path11) {
+  if (path11.length === 0) {
     return "object root";
   }
-  return path9.reduce((acc, seg, index) => {
+  return path11.reduce((acc, seg, index) => {
     if (index === 0) {
       return String(seg);
     }
@@ -28876,6 +28885,7 @@ var GITIGNORE = `# Proofloop: never commit recordings, consent records or raw tr
 */consent/*.json
 */context/sources/
 .proofloop/secrets*
+.proofloop/exports/
 *.tmp-*
 `;
 function appendLog(root2, slug, entry) {
@@ -28961,7 +28971,9 @@ var StudySchema = external_exports.object({
     relay: external_exports.object({ url: external_exports.string().url() }).strict().optional(),
     model: external_exports.object({
       research: external_exports.string().default("claude-opus-5-5"),
-      economyMode: external_exports.boolean().default(false)
+      economyMode: external_exports.boolean().default(false),
+      // FR-PLG-013: which approved model account runs the research steps.
+      account: external_exports.enum(["claude-enterprise", "claude-team", "api-bedrock", "api-vertex", "api-anthropic", "cursor"]).optional()
     }).strict().default({}),
     blocks: external_exports.array(block).min(1)
   }).strict()
@@ -29028,6 +29040,7 @@ function lintStudy(study, { contextIds = [] } = {}) {
   if (s.mode === "moderated" && !s.moderators.length) add("error", "spec.moderators", "List moderator names so their speech is never counted as participant evidence.");
   if (s.participants.type !== "internal" && s.storage.location === "laptop") add("info", "spec.storage", "Customer recordings on a laptop: confirm the laptop is company-managed with disk encryption, and that the folder is backed up.");
   if (s.recording.camera && s.participants.type !== "internal") add("warning", "spec.recording.camera", "Camera video of customers adds privacy risk and is not analysed (no facial or emotion analysis). Turn it off unless you need it for a highlight reel.");
+  if (!s.model.account) add(s.participants.type === "internal" ? "warning" : "error", "spec.model.account", "Record which approved model account runs the analysis (claude-enterprise, claude-team, api-bedrock, api-vertex, api-anthropic or cursor). Customer sessions need it.");
   if (s.model.economyMode) add("warning", "spec.model", "Economy mode: lower-quality model for research steps. Every output will be labelled.");
   if (!study.spec.blocks.some((b) => b.type === "instructions" && /think aloud|think out loud|say what you('re| are) thinking/i.test(b.text))) {
     add("info", "blocks", "No think-aloud instruction found. Ask people to say what they are thinking as they go.");
@@ -29336,6 +29349,10 @@ function verifyInsights(doc, board) {
     for (const g of gids) if (!groups.has(g)) errors.push(`unknown group ${g}`);
     const nids = ins.note_ids?.length ? ins.note_ids : gids.flatMap((g) => groups.get(g)?.note_ids ?? []);
     for (const n of nids) if (!notes.has(n)) errors.push(`unknown note ${n}`);
+    for (const n of ins.counter_note_ids ?? []) {
+      if (!notes.has(n)) errors.push(`unknown counter note ${n}`);
+      else if (nids.includes(n)) errors.push(`note ${n} can't be both evidence and counter-evidence`);
+    }
     for (const q of ins.quotes ?? []) {
       const ok2 = nids.some((n) => (notes.get(n)?.evidence ?? []).some((e) => e.kind === "quote" && containsInOrder(e.quote, q)));
       if (!ok2) errors.push(`quote "${String(q).slice(0, 40)}" is not from this insight's notes`);
@@ -29527,8 +29544,9 @@ function applyOp(board, op, by = "researcher") {
   board.history.push({ at: (/* @__PURE__ */ new Date()).toISOString(), by, op: op.op, detail: op });
   return board;
 }
-function groupStats(board, group) {
+function groupStats(board, group, { counterNoteIds = [] } = {}) {
   const notes = group.note_ids.map((id) => board.notes.find((n) => n.id === id)).filter(Boolean);
+  const counterParticipants = [...new Set(counterNoteIds.map((id) => board.notes.find((n) => n.id === id)?.participant).filter(Boolean))];
   const participants = [...new Set(notes.map((n) => n.participant))];
   const hasBehaviour = notes.some((n) => n.type === "behaviour" || (n.evidence ?? []).some((e) => e.kind === "event"));
   const hasVerbal = notes.some((n) => (n.evidence ?? []).some((e) => e.kind === "quote"));
@@ -29540,7 +29558,8 @@ function groupStats(board, group) {
     ci90: N > 0 && participants.length <= N ? adjustedWald(participants.length, N) : null,
     has_behaviour: hasBehaviour,
     has_verbal: hasVerbal,
-    confidence: confidence({ sessions: participants.length, nIncluded: N, hasBehaviour, hasVerbal })
+    counter_sessions: counterParticipants.length,
+    confidence: confidence({ sessions: participants.length, nIncluded: N, hasBehaviour, hasVerbal, counterSessions: counterParticipants.length })
   };
 }
 function boardSummary(board) {
@@ -29733,6 +29752,7 @@ function mdToHtml(md) {
 }
 
 // relay/handler.mjs
+init_sigv4();
 import crypto2 from "node:crypto";
 var MAX_BYTES = 25 * 1024 * 1024;
 function b64url(buf) {
@@ -30875,7 +30895,8 @@ async function call(relayUrl, adminToken, method, p, query) {
   return j;
 }
 async function importFromRelay({ root: root2, slug, relayUrl, adminToken, includeIncomplete = false, keepOnRelay = false, now = Date.now() }) {
-  const { objects } = await call(relayUrl, adminToken, "GET", "/list", { study: slug });
+  const { objects, retention_days: retentionDays = 1 } = await call(relayUrl, adminToken, "GET", "/list", { study: slug });
+  const limitH = retentionDays * 24;
   const byP = /* @__PURE__ */ new Map();
   for (const o of objects) {
     const [, p, name] = o.key.split("/");
@@ -30901,7 +30922,7 @@ async function importFromRelay({ root: root2, slug, relayUrl, adminToken, includ
     const ageH = (now - newest) / 36e5;
     if (!done && !(includeIncomplete && ageH > 2)) {
       report.skipped.push({ participant: p, reason: done ? "" : `not finished yet (last upload ${ageH.toFixed(1)} h ago)` });
-      if (ageH > 20) report.warnings.push(`${p}: unfinished and close to the 24-hour relay limit. Import with include_incomplete to keep what arrived.`);
+      if (ageH > limitH - 4) report.warnings.push(`${p}: unfinished and close to the ${limitH}-hour relay limit. Import with include_incomplete to keep what arrived.`);
       continue;
     }
     const tooBig = objs.find((o) => o.size > MAX_PIECE);
@@ -30979,7 +31000,24 @@ async function importFromRelay({ root: root2, slug, relayUrl, adminToken, includ
       fs4.rmSync(stage, { recursive: true, force: true });
     }
   }
-  appendLog(root2, slug, { skill: "import-sessions", source: "relay", imported: report.imported.map((x) => x.participant), deleted_from_relay: report.deleted, warnings: report.warnings });
+  const seenF = path4.join(studyDir(root2, slug), ".relay-seen.json");
+  const seen = readJson(seenF, { participants: {} });
+  for (const p of byP.keys()) seen.participants[p] = { last_seen: new Date(now).toISOString(), reported_lost: false };
+  report.lost = [];
+  for (const [p, info] of Object.entries(seen.participants)) {
+    if (byP.has(p) || info.reported_lost) continue;
+    if (fs4.existsSync(path4.join(sessionDir(root2, slug, p), "recording.json")) || fs4.existsSync(path4.join(sessionDir(root2, slug, p), "runner-import.json"))) {
+      delete seen.participants[p];
+      continue;
+    }
+    info.reported_lost = true;
+    report.lost.push(p);
+    report.warnings.push(`${p}: uploads were waiting on the relay (last seen ${info.last_seen}) but were deleted by its ${limitH}-hour limit before they were imported. That session is lost; invite ${p} again with a new link if needed.`);
+  }
+  for (const x of report.imported) delete seen.participants[x.participant];
+  writeJson(seenF, seen);
+  report.retention_hours = limitH;
+  appendLog(root2, slug, { skill: "import-sessions", source: "relay", lost: report.lost, imported: report.imported.map((x) => x.participant), deleted_from_relay: report.deleted, warnings: report.warnings });
   return report;
 }
 function newSecret() {
@@ -31892,7 +31930,7 @@ function prepareSession({ root: root2, slug, participant, study, maxFrames = 20 
 import fs6 from "node:fs";
 import path6 from "node:path";
 function computeInsightStats(board, insight) {
-  const s = groupStats(board, { note_ids: insight.note_ids });
+  const s = groupStats(board, { note_ids: insight.note_ids }, { counterNoteIds: insight.counter_note_ids ?? [] });
   if (insight.stable === false && s.confidence === "high") s.confidence = "medium";
   return s;
 }
@@ -31919,7 +31957,7 @@ function taskMetrics(root2, slug, study) {
       const success2 = selfReport ? outcome === "completed" : reached || outcome === "completed";
       if (success2) {
         ok2++;
-        if (start && end) secs.push((end.t_ms - start.t_ms) / 1e3);
+        if (start && end && !end.no_time) secs.push((end.t_ms - start.t_ms) / 1e3);
       }
       const a = readJson(path6.join(studyDir(root2, slug), "sessions", p, "answers.json"), null);
       const seqQ = (t.followUps ?? []).find((f) => f.type === "seq");
@@ -32001,6 +32039,12 @@ function renderReport({ root: root2, slug, study }) {
       const u = utt(q.p, q.e.utterance_ids?.[0] ?? q.e.utterance_id);
       md.push(`> "${q.e.quote}" (${q.p}${u ? `, ${fmtT(u.start_ms)}` : ""})`, "");
     }
+    const counter = (i.counter_note_ids ?? []).map((n) => noteById.get(n)).filter(Boolean);
+    if (counter.length) {
+      md.push(`**Counter-evidence:** ${s.counter_sessions} participant${s.counter_sessions === 1 ? "" : "s"} did or said the opposite.`, "");
+      for (const n of counter.slice(0, 2)) md.push(`- ${n.text} (${n.participant})`);
+      md.push("");
+    }
     if (i.recommendation) md.push(`**Recommendation:** ${i.recommendation}`, "");
   }
   md.push("## Task results", "");
@@ -32050,7 +32094,7 @@ function renderReport({ root: root2, slug, study }) {
   }
   md.push("## Method and limits", "");
   md.push(`- Participants: ${board.n_included} (${study.spec.participants.type}). Small samples find problems well but don't measure how common they are; the ranges above show the uncertainty.`);
-  md.push(`- AI: ${study.spec.model.research}${economy ? " (economy mode)" : ""}. ${rejectedCitations} AI observations were rejected for citations that did not match the evidence.`);
+  md.push(`- AI: ${study.spec.model.research}${economy ? " (economy mode)" : ""}${study.spec.model.account ? `, through the approved ${study.spec.model.account} account` : ""}. ${rejectedCitations} AI observations were rejected for citations that did not match the evidence.`);
   md.push(`- Researcher changes to the AI's grouping: ${pct(agreement.notes_moved_share)} of notes were moved to a different group by the researcher (adjusted Rand index ${agreement.adjusted_rand_index.toFixed(2)} between the AI draft and the final board).`);
   md.push("- Results are not split by user segment: with fewer than 5 people per segment, differences between groups can't be told apart from chance.");
   md.push("- No facial expression or emotion analysis was used. Feelings are reported only in participants' own words.");
@@ -32139,15 +32183,280 @@ function compareStudies({ root: root2, before, after }) {
   return { before: before.metadata.slug, after: after.metadata.slug, tasks: rows, sus, note: 'Differences are in percentage points with a 90% Newcombe interval. Small samples rarely show a clear difference; report "better in this sample" unless the verdict says improved.' };
 }
 
-// src/lib/local-server.mjs
-import http from "node:http";
+// src/lib/csv-import.mjs
 import fs7 from "node:fs";
 import path7 from "node:path";
+function parseCsv(text) {
+  const s = text.replace(/^﻿/, "");
+  const rows = [];
+  let row = [];
+  let cell = "";
+  let q = false;
+  for (let i = 0; i < s.length; i++) {
+    const c = s[i];
+    if (q) {
+      if (c === '"' && s[i + 1] === '"') {
+        cell += '"';
+        i++;
+      } else if (c === '"') q = false;
+      else cell += c;
+    } else if (c === '"' && cell === "") q = true;
+    else if (c === ",") {
+      row.push(cell);
+      cell = "";
+    } else if (c === "\n" || c === "\r") {
+      if (c === "\r" && s[i + 1] === "\n") i++;
+      row.push(cell);
+      cell = "";
+      if (row.some((x) => x !== "")) rows.push(row);
+      row = [];
+    } else cell += c;
+  }
+  if (q) throw new Error("The CSV has an unclosed quote.");
+  row.push(cell);
+  if (row.some((x) => x !== "")) rows.push(row);
+  if (!rows.length) throw new Error("The CSV is empty.");
+  const header = rows[0].map((h) => h.trim());
+  return { header, rows: rows.slice(1).map((r) => Object.fromEntries(header.map((h, i) => [h, (r[i] ?? "").trim()]))) };
+}
+var norm = (v) => v.trim().toLowerCase();
+var SUCCESS = ["success", "successful", "succeeded", "completed", "complete", "pass", "passed", "yes", "y", "true", "1"];
+var FAILURE = ["fail", "failed", "failure", "gave up", "give up", "abandoned", "incomplete", "not completed", "no", "n", "false", "0"];
+function importResultsCsv({ root: root2, slug, study, csvPath, participantColumn, tasks, susColumns, videoColumn, videoDir, consentVersion }) {
+  const { header, rows } = parseCsv(fs7.readFileSync(csvPath, "utf8"));
+  const studyTasks = new Map(study.spec.blocks.filter((b) => b.type === "task").map((t) => [t.id, t]));
+  const need = [participantColumn, ...tasks.flatMap((t) => [t.outcome_column, t.time_column, t.seq_column]), ...susColumns ?? [], videoColumn].filter(Boolean);
+  const missing = need.filter((c) => !header.includes(c));
+  if (missing.length) throw new Error(`Columns not in the CSV: ${missing.join(", ")}. The CSV has: ${header.join(", ")}`);
+  for (const t of tasks) {
+    if (!studyTasks.has(t.task_id)) throw new Error(`Task "${t.task_id}" is not in study.yaml.`);
+    if (t.seq_column && !(studyTasks.get(t.task_id).followUps ?? []).some((f) => f.type === "seq")) throw new Error(`Task "${t.task_id}" has no SEQ question in study.yaml, so seq_column can't be stored.`);
+  }
+  const susBlock = study.spec.blocks.find((b) => b.type === "question" && b.questionType === "sus");
+  if (susColumns && !susBlock) throw new Error("study.yaml has no SUS question, so sus_columns can't be stored.");
+  if (videoColumn && !videoDir) throw new Error("video_dir is needed with video_column.");
+  const idsFile = path7.join(studyDir(root2, slug), "consent", "external-ids.json");
+  const ids = readJson(idsFile, { source: "csv", map: {} });
+  let next = Math.max(0, ...listSessions(root2, slug).map((p) => Number(p.slice(1))), ...Object.values(ids.map).map((p) => Number(p.slice(1)))) + 1;
+  const report = { rows: rows.length, imported: [], skipped: [], warnings: [], note: "Task success is the testing tool's own result, taken as given. Imported sessions have no click data, so behaviour notes need the video or transcript." };
+  const success2 = (t) => new Set((t.success_values ?? SUCCESS).map(norm));
+  const failure = (t) => new Set((t.failure_values ?? FAILURE).map(norm));
+  rows.forEach((row, i) => {
+    const line = i + 2;
+    const ext = row[participantColumn];
+    if (!ext) {
+      report.warnings.push(`Row ${line}: no participant id, skipped.`);
+      return;
+    }
+    const p = ids.map[ext] ?? `P${next++}`;
+    ids.map[ext] = p;
+    const dir = sessionDir(root2, slug, p);
+    if (fs7.existsSync(path7.join(dir, "session.json"))) {
+      report.skipped.push(p);
+      return;
+    }
+    const events = [];
+    let seq2 = 0;
+    let t0 = 0;
+    const answers = {};
+    for (const t of tasks) {
+      const raw = norm(row[t.outcome_column]);
+      if (!raw) continue;
+      const ok2 = success2(t).has(raw);
+      const bad = failure(t).has(raw);
+      if (!ok2 && !bad) {
+        report.warnings.push(`Row ${line} (${p}): outcome for ${t.task_id} isn't a known success or failure value, so that task is left out. Pass success_values or failure_values to map it.`);
+        continue;
+      }
+      const secs = t.time_column ? Number(row[t.time_column].replace(",", ".")) : NaN;
+      const dur = Number.isFinite(secs) && secs >= 0 ? Math.round(secs * 1e3) : null;
+      if (t.time_column && dur === null && row[t.time_column]) report.warnings.push(`Row ${line} (${p}): time for ${t.task_id} is not a number of seconds, so no time is recorded.`);
+      const id = () => `e${String(++seq2).padStart(5, "0")}`;
+      events.push({ id: id(), t_ms: t0, type: "task_start", task_id: t.task_id });
+      const end = { id: id(), t_ms: t0 + (dur ?? 0), type: "task_end", task_id: t.task_id, outcome: ok2 ? "completed" : "gave_up", reached: ok2, source: "csv" };
+      if (dur === null) end.no_time = true;
+      events.push(end);
+      t0 += (dur ?? 0) + 1e3;
+      if (t.seq_column && row[t.seq_column]) {
+        const v = Number(row[t.seq_column]);
+        const q = studyTasks.get(t.task_id).followUps.find((f) => f.type === "seq");
+        if (Number.isInteger(v) && v >= 1 && v <= 7) answers[q.id] = v;
+        else report.warnings.push(`Row ${line} (${p}): SEQ for ${t.task_id} is not 1 to 7, left out.`);
+      }
+    }
+    if (susColumns) {
+      const vals = susColumns.map((c) => Number(row[c]));
+      if (vals.every((v) => Number.isInteger(v) && v >= 1 && v <= 5)) answers[susBlock.id] = vals;
+      else if (susColumns.some((c) => row[c])) report.warnings.push(`Row ${line} (${p}): SUS answers incomplete or not 1 to 5, left out.`);
+    }
+    let files = {};
+    if (videoColumn && row[videoColumn]) {
+      const name = row[videoColumn];
+      if (path7.basename(name) !== name) report.warnings.push(`Row ${line} (${p}): video name must be a file name in video_dir, not a path. Video left out.`);
+      else {
+        const src = path7.join(videoDir, name);
+        try {
+          if (!fs7.existsSync(src)) throw new Error("file not found in video_dir");
+          assertMediaFile(src);
+          const e = /^\.(mp4|m4a|mov|webm|mkv|wav|mp3|ogg)$/.test(path7.extname(name).toLowerCase()) ? path7.extname(name).toLowerCase() : ".mp4";
+          fs7.mkdirSync(path7.join(dir, "media"), { recursive: true });
+          fs7.copyFileSync(src, path7.join(dir, "media", `screen${e}`));
+          files = { screen: { file: `media/screen${e}`, bytes: fs7.statSync(src).size } };
+        } catch (err2) {
+          report.warnings.push(`Row ${line} (${p}): video left out (${err2.message}).`);
+        }
+      }
+    }
+    fs7.mkdirSync(dir, { recursive: true });
+    if (events.length) writeJson(path7.join(dir, "events.json"), { source: "csv", session_start: null, events });
+    if (Object.keys(answers).length) writeJson(path7.join(dir, "answers.json"), { source: "csv", answers });
+    writeJson(path7.join(dir, "recording.json"), { participant: p, imported_at: (/* @__PURE__ */ new Date()).toISOString(), source: "csv", complete: true, files });
+    writeJson(path7.join(dir, "session.json"), { participant: p, mode: "unmoderated", source: "csv" });
+    const cf = path7.join(studyDir(root2, slug), "consent", `${p}.json`);
+    if (!fs7.existsSync(cf)) writeJson(cf, { participant: p, agreed: true, version: consentVersion, method: "external-tool", recorded_by: "testing tool", at: (/* @__PURE__ */ new Date()).toISOString() });
+    report.imported.push({ participant: p, tasks: events.length / 2, answers: Object.keys(answers).length, video: !!files.screen });
+  });
+  writeJson(idsFile, ids);
+  appendLog(root2, slug, { skill: "import-sessions", source: "csv", rows: rows.length, imported: report.imported.length, skipped: report.skipped.length });
+  return report;
+}
+
+// src/lib/export.mjs
+import fs8 from "node:fs";
+import path8 from "node:path";
+import zlib from "node:zlib";
 import crypto5 from "node:crypto";
+import { pipeline } from "node:stream/promises";
+import { Readable } from "node:stream";
+var MEDIA = /^sessions\/[^/]+\/(media|frames)\/|^sessions\/[^/]+\/transcript\.json$/;
+var NEVER3 = [
+  /^sessions\/[^/]+\/\.incoming\//,
+  /^sessions\/[^/]+\/notes\.md$/,
+  /^sessions\/[^/]+\/device\.json$/,
+  /^context\/sources\//,
+  /^runner\//,
+  /(^|\/)\.DS_Store$/,
+  /\.tmp-/
+];
+function walk(dir, base = dir, out = []) {
+  for (const e of fs8.readdirSync(dir, { withFileTypes: true })) {
+    const f = path8.join(dir, e.name);
+    if (e.isSymbolicLink()) continue;
+    if (e.isDirectory()) walk(f, base, out);
+    else if (e.isFile()) out.push(path8.relative(base, f).split(path8.sep).join("/"));
+  }
+  return out;
+}
+function tarHeader(name, size, mtime) {
+  const h = Buffer.alloc(512);
+  let prefix = "";
+  let n = name;
+  if (Buffer.byteLength(n) > 100) {
+    let i = n.indexOf("/");
+    while (i !== -1 && Buffer.byteLength(n.slice(i + 1)) > 100) i = n.indexOf("/", i + 1);
+    if (i === -1 || Buffer.byteLength(n.slice(0, i)) > 155) throw new Error(`Path too long to package: ${name}`);
+    prefix = n.slice(0, i);
+    n = n.slice(i + 1);
+  }
+  const put = (s, off, len) => h.write(s, off, len, "utf8");
+  const oct = (v, len) => v.toString(8).padStart(len - 1, "0") + "\0";
+  put(n, 0, 100);
+  put(oct(420, 8), 100, 8);
+  put(oct(0, 8), 108, 8);
+  put(oct(0, 8), 116, 8);
+  put(oct(size, 12), 124, 12);
+  put(oct(Math.floor(mtime / 1e3), 12), 136, 12);
+  h.fill(32, 148, 156);
+  put("0", 156, 1);
+  put("ustar\0", 257, 6);
+  put("00", 263, 2);
+  put(prefix, 345, 155);
+  let sum = 0;
+  for (const b of h) sum += b;
+  put(sum.toString(8).padStart(6, "0") + "\0 ", 148, 8);
+  return h;
+}
+async function* tarStream(entries) {
+  for (const e of entries) {
+    yield tarHeader(e.path, e.bytes, e.mtime);
+    if (e.data) yield e.data;
+    else for await (const c of fs8.createReadStream(e.file)) yield c;
+    const pad = (512 - e.bytes % 512) % 512;
+    if (pad) yield Buffer.alloc(pad);
+  }
+  yield Buffer.alloc(1024);
+}
+var sha = (buf) => crypto5.createHash("sha256").update(buf).digest("hex");
+async function shaFile(f) {
+  const h = crypto5.createHash("sha256");
+  for await (const c of fs8.createReadStream(f)) h.update(c);
+  return h.digest("hex");
+}
+async function exportStudy({ root: root2, slug, study, includeMedia = false, version: version2, outDir, now = /* @__PURE__ */ new Date() }) {
+  const dir = studyDir(root2, slug);
+  const files = walk(dir).sort();
+  const entries = [];
+  const left_out = { media: 0, private: 0 };
+  for (const rel of files) {
+    if (NEVER3.some((re) => re.test(rel))) {
+      left_out.private++;
+      continue;
+    }
+    if (MEDIA.test(rel) && !includeMedia) {
+      left_out.media++;
+      continue;
+    }
+    const file = path8.join(dir, rel);
+    const st = fs8.statSync(file);
+    if (/^consent\/[^/]+\.json$/.test(rel) && rel !== "consent/external-ids.json") {
+      const c = JSON.parse(fs8.readFileSync(file, "utf8"));
+      delete c.name;
+      const data = Buffer.from(JSON.stringify(c, null, 2) + "\n");
+      entries.push({ path: `${slug}/${rel}`, data, bytes: data.length, mtime: st.mtimeMs, sha256: sha(data) });
+      continue;
+    }
+    if (rel === "consent/external-ids.json") {
+      left_out.private++;
+      continue;
+    }
+    entries.push({ path: `${slug}/${rel}`, file, bytes: st.size, mtime: st.mtimeMs, sha256: await shaFile(file) });
+  }
+  const manifest = {
+    format: "proofloop-study-export",
+    format_version: 1,
+    plugin_version: version2,
+    exported_at: now.toISOString(),
+    study: { slug, name: study.metadata?.name ?? null, version: study.metadata?.version ?? null, previous_version: study.metadata?.previousVersion ?? null },
+    participants: listSessions(root2, slug),
+    includes_media: includeMedia,
+    ids_unchanged: true,
+    left_out,
+    files: entries.map((e) => ({ path: e.path, bytes: e.bytes, sha256: e.sha256 }))
+  };
+  const mdata = Buffer.from(JSON.stringify(manifest, null, 2) + "\n");
+  const all = [{ path: `${slug}/manifest.json`, data: mdata, bytes: mdata.length, mtime: now.getTime() }, ...entries];
+  fs8.mkdirSync(outDir, { recursive: true, mode: 448 });
+  const stamp = now.toISOString().replace(/[-:]/g, "").slice(0, 15);
+  const out = path8.join(outDir, `${slug}-${stamp}${includeMedia ? "-with-media" : ""}.tar.gz`);
+  const tmp = `${out}.tmp-${process.pid}`;
+  try {
+    await pipeline(Readable.from(tarStream(all)), zlib.createGzip(), fs8.createWriteStream(tmp, { mode: 384 }));
+    fs8.renameSync(tmp, out);
+  } finally {
+    fs8.rmSync(tmp, { force: true });
+  }
+  return { file: out, files: entries.length, bytes: fs8.statSync(out).size, participants: manifest.participants.length, includes_media: includeMedia, left_out };
+}
+
+// src/lib/local-server.mjs
+import http from "node:http";
+import fs9 from "node:fs";
+import path9 from "node:path";
+import crypto6 from "node:crypto";
 import { spawnSync as spawnSync2 } from "node:child_process";
 var TYPES = { html: "text/html; charset=utf-8", js: "text/javascript; charset=utf-8", css: "text/css; charset=utf-8" };
 function startLocalServer({ root: root2, port = 0 }) {
-  const key = crypto5.randomBytes(24).toString("hex");
+  const key = crypto6.randomBytes(24).toString("hex");
   const server2 = http.createServer();
   const open = /* @__PURE__ */ new Map();
   const send = (res, status, body, type = "application/json") => {
@@ -32184,28 +32493,28 @@ function startLocalServer({ root: root2, port = 0 }) {
       }
       if (parts[0] !== "api") return send(res, 404, { error: "not found" });
       const given = Buffer.from(String(req.headers["x-proofloop-key"] ?? ""));
-      if (given.length !== key.length * 1 || !crypto5.timingSafeEqual(given, Buffer.from(key))) return send(res, 401, { error: "bad key" });
+      if (given.length !== key.length * 1 || !crypto6.timingSafeEqual(given, Buffer.from(key))) return send(res, 401, { error: "bad key" });
       if (parts[1] === "studio") {
         const [, , slug, p, action] = parts;
         const sdir = sessionDir(root2, slug, p);
-        const studyFile = path7.join(studyDir(root2, slug), "study.yaml");
+        const studyFile = path9.join(studyDir(root2, slug), "study.yaml");
         if (req.method === "GET" && !action) {
-          const parsed = parseStudy(fs7.readFileSync(studyFile, "utf8"));
+          const parsed = parseStudy(fs9.readFileSync(studyFile, "utf8"));
           if (parsed.errors) return send(res, 400, { error: parsed.errors.join("; ") });
-          const guidePath = path7.join(studyDir(root2, slug), "guide.md");
-          const guide = fs7.existsSync(guidePath) ? fs7.readFileSync(guidePath, "utf8") : "";
+          const guidePath = path9.join(studyDir(root2, slug), "guide.md");
+          const guide = fs9.existsSync(guidePath) ? fs9.readFileSync(guidePath, "utf8") : "";
           const sections = guide.split("\n").filter((l) => /^##\s/.test(l)).map((l, i) => ({ id: `sec${i + 1}`, title: l.replace(/^##\s+/, "") }));
-          return send(res, 200, { study: parsed.study.metadata.name, mediaDays: parsed.study.spec.retention.mediaDays, participant: p, consent: hasConsent(root2, slug, p), sections, already: fs7.existsSync(path7.join(sdir, "recording.json")) });
+          return send(res, 200, { study: parsed.study.metadata.name, mediaDays: parsed.study.spec.retention.mediaDays, participant: p, consent: hasConsent(root2, slug, p), sections, already: fs9.existsSync(path9.join(sdir, "recording.json")) });
         }
         if (!hasConsent(root2, slug, p)) return send(res, 403, { error: `No consent record for ${p}. Record consent first (consent/${p}.json).` });
         if (req.method === "POST" && action === "start") {
-          if (fs7.existsSync(path7.join(sdir, "recording.json"))) return send(res, 409, { error: "This session already has a recording. Use a new participant id." });
+          if (fs9.existsSync(path9.join(sdir, "recording.json"))) return send(res, 409, { error: "This session already has a recording. Use a new participant id." });
           const b = await json(req);
-          fs7.mkdirSync(path7.join(sdir, "media"), { recursive: true });
-          writeJson(path7.join(sdir, "session.json"), { participant: p, mode: "moderated", started_at: new Date(b.started_at).toISOString(), started_at_ms: b.started_at, tracks: b.tracks, capture: b.capture });
-          writeJson(path7.join(sdir, "markers.json"), { markers: [] });
+          fs9.mkdirSync(path9.join(sdir, "media"), { recursive: true });
+          writeJson(path9.join(sdir, "session.json"), { participant: p, mode: "moderated", started_at: new Date(b.started_at).toISOString(), started_at_ms: b.started_at, tracks: b.tracks, capture: b.capture });
+          writeJson(path9.join(sdir, "markers.json"), { markers: [] });
           if (!Array.isArray(b.tracks) || !b.tracks.length || !b.tracks.every((t) => t === "screen" || t === "mic")) return send(res, 400, { error: "tracks must be screen and/or mic" });
-          for (const t of b.tracks) open.set(`${slug}/${p}/${t}`, { fd: fs7.openSync(path7.join(sdir, "media", `${t}.webm`), "w"), seq: 0 });
+          for (const t of b.tracks) open.set(`${slug}/${p}/${t}`, { fd: fs9.openSync(path9.join(sdir, "media", `${t}.webm`), "w"), seq: 0 });
           appendLog(root2, slug, { skill: "run-session", event: "recording_start", participant: p });
           return send(res, 200, { ok: true });
         }
@@ -32216,13 +32525,13 @@ function startLocalServer({ root: root2, port = 0 }) {
           if (!o) return send(res, 409, { error: "recording not started" });
           if (seq2 !== o.seq) return send(res, 409, { error: `expected piece ${o.seq}, got ${seq2}`, expected: o.seq });
           const buf = await readBody(req, 50 * 1024 * 1024);
-          fs7.writeSync(o.fd, buf);
+          fs9.writeSync(o.fd, buf);
           o.seq++;
           return send(res, 200, { ok: true, next: o.seq });
         }
         if (req.method === "POST" && action === "marker") {
           const b = await json(req);
-          const f = path7.join(sdir, "markers.json");
+          const f = path9.join(sdir, "markers.json");
           const m = readJson(f, { markers: [] });
           m.markers.push({ id: `m${String(m.markers.length + 1).padStart(3, "0")}`, t_ms: Math.max(0, Number(b.t_ms) || 0), kind: String(b.kind ?? "note").slice(0, 20), text: String(b.text ?? "").slice(0, 2e3) });
           writeJson(f, m);
@@ -32233,19 +32542,19 @@ function startLocalServer({ root: root2, port = 0 }) {
           const files = {};
           for (const [k, o] of open) {
             if (!k.startsWith(`${slug}/${p}/`)) continue;
-            fs7.closeSync(o.fd);
+            fs9.closeSync(o.fd);
             open.delete(k);
             const track = k.split("/").pop();
-            const raw = path7.join(sdir, "media", `${track}.webm`);
-            const fixed = path7.join(sdir, "media", `${track}.fixed.webm`);
+            const raw = path9.join(sdir, "media", `${track}.webm`);
+            const fixed = path9.join(sdir, "media", `${track}.fixed.webm`);
             const r = spawnSync2("ffmpeg", ["-y", "-v", "error", "-i", raw, "-c", "copy", fixed]);
-            if (r.status === 0) fs7.renameSync(fixed, raw);
-            files[track] = { file: `media/${track}.webm`, bytes: fs7.statSync(raw).size, sha256: sha256File(raw), pieces: o.seq, remuxed: r.status === 0 };
+            if (r.status === 0) fs9.renameSync(fixed, raw);
+            files[track] = { file: `media/${track}.webm`, bytes: fs9.statSync(raw).size, sha256: sha256File(raw), pieces: o.seq, remuxed: r.status === 0 };
           }
-          writeJson(path7.join(sdir, "recording.json"), { participant: p, ended_at: (/* @__PURE__ */ new Date()).toISOString(), duration_ms: b.duration_ms, files });
-          const m = readJson(path7.join(sdir, "markers.json"), { markers: [] });
+          writeJson(path9.join(sdir, "recording.json"), { participant: p, ended_at: (/* @__PURE__ */ new Date()).toISOString(), duration_ms: b.duration_ms, files });
+          const m = readJson(path9.join(sdir, "markers.json"), { markers: [] });
           const fmt = (ms) => new Date(ms).toISOString().slice(11, 19);
-          fs7.writeFileSync(path7.join(sdir, "notes.md"), `# Moderator notes: ${p}
+          fs9.writeFileSync(path9.join(sdir, "notes.md"), `# Moderator notes: ${p}
 
 ${m.markers.map((x) => `- [${fmt(x.t_ms)}] (${x.kind}) ${x.text}`).join("\n")}
 `);
@@ -32255,7 +32564,7 @@ ${m.markers.map((x) => `- [${fmt(x.t_ms)}] (${x.kind}) ${x.text}`).join("\n")}
       }
       if (parts[1] === "board") {
         const slug = parts[2];
-        const f = path7.join(studyDir(root2, slug), "affinity", "board.json");
+        const f = path9.join(studyDir(root2, slug), "affinity", "board.json");
         if (req.method === "GET") {
           const board = readJson(f);
           return send(res, 200, { board, summary: boardSummary(board) });
@@ -32313,7 +32622,7 @@ spec:
     mediaDays: 90__RELAY__
   model:
     research: claude-opus-5-5
-    economyMode: false
+    economyMode: false__ACCOUNT__
   blocks:
     - id: intro
       type: instructions
@@ -32374,7 +32683,7 @@ Each "##" section below becomes a marker you can select in the Studio.
 };
 
 // src/server.mjs
-var VERSION = "0.1.0";
+var VERSION = "0.2.0";
 var server = new McpServer({ name: "proofloop", version: VERSION });
 var ok = (data) => ({ content: [{ type: "text", text: typeof data === "string" ? data : JSON.stringify(data, null, 2) }] });
 var fail = (msg) => ({ isError: true, content: [{ type: "text", text: msg }] });
@@ -32388,21 +32697,21 @@ function tool(name, description, schema, fn) {
   });
 }
 function root(folder) {
-  const r = folder ? path8.resolve(folder) : findResearchRoot(process.cwd());
-  if (!r || !fs8.existsSync(path8.join(r, ".proofloop", "config.json"))) throw new Error("No research folder found. Run the research-setup skill (setup_init) first.");
+  const r = folder ? path10.resolve(folder) : findResearchRoot(process.cwd());
+  if (!r || !fs10.existsSync(path10.join(r, ".proofloop", "config.json"))) throw new Error("No research folder found. Run the research-setup skill (setup_init) first.");
   return r;
 }
 function loadStudy(r, slug) {
-  const f = path8.join(studyDir(r, slug), "study.yaml");
-  if (!fs8.existsSync(f)) throw new Error(`Study "${slug}" not found at ${f}`);
-  const res = parseStudy(fs8.readFileSync(f, "utf8"));
+  const f = path10.join(studyDir(r, slug), "study.yaml");
+  if (!fs10.existsSync(f)) throw new Error(`Study "${slug}" not found at ${f}`);
+  const res = parseStudy(fs10.readFileSync(f, "utf8"));
   if (res.errors) throw new Error(`study.yaml has errors:
 ${res.errors.join("\n")}`);
   return res.study;
 }
 function secretsPath(r) {
-  const id = crypto6.createHash("sha256").update(path8.resolve(r)).digest("hex").slice(0, 16);
-  return path8.join(os.homedir(), ".config", "proofloop", `${id}.json`);
+  const id = crypto7.createHash("sha256").update(path10.resolve(r)).digest("hex").slice(0, 16);
+  return path10.join(os.homedir(), ".config", "proofloop", `${id}.json`);
 }
 function relayOrigin(u) {
   const x = new URL(u);
@@ -32417,8 +32726,8 @@ function pinnedRelay(r) {
 }
 function readSecrets(r) {
   const f = secretsPath(r);
-  if (!fs8.existsSync(f)) throw new Error("No relay secrets for this research folder. Run setup_init with relay_url.");
-  return JSON.parse(fs8.readFileSync(f, "utf8"));
+  if (!fs10.existsSync(f)) throw new Error("No relay secrets for this research folder. Run setup_init with relay_url.");
+  return JSON.parse(fs10.readFileSync(f, "utf8"));
 }
 var local = null;
 async function localServer(r) {
@@ -32431,21 +32740,21 @@ var slugArg = external_exports.string().regex(/^[a-z0-9-]+$/).describe("Study fo
 var pArg = external_exports.string().regex(/^P\d{1,3}$/).describe("Participant id, e.g. P1");
 var folderArg = external_exports.string().optional().describe("Research folder path; defaults to ./research found from the working directory");
 tool("setup_check", "Check prerequisites for the Research Copilot: FFmpeg, local transcription (whisper.cpp), research folder location, git safety, and configuration. Run before the first study.", { folder: folderArg }, ({ folder }) => {
-  const r = folder ? path8.resolve(folder) : findResearchRoot(process.cwd());
-  const cfg = r && fs8.existsSync(path8.join(r, ".proofloop", "config.json")) ? loadConfig(r) : null;
+  const r = folder ? path10.resolve(folder) : findResearchRoot(process.cwd());
+  const cfg = r && fs10.existsSync(path10.join(r, ".proofloop", "config.json")) ? loadConfig(r) : null;
   const checks = {
     node: process.version,
     ffmpeg: which("ffmpeg") ? "found" : "missing: needed to assemble recordings and take key screenshots",
     ffprobe: which("ffprobe") ? "found" : "missing (comes with FFmpeg)",
     whisper_cpp: which("whisper-cli") || which("whisper-cpp") ? "found" : "missing: needed only to transcribe recordings yourself; call-tool transcripts work without it",
-    whisper_model: cfg?.whisper_model ? fs8.existsSync(cfg.whisper_model) ? "found" : `not found at ${cfg.whisper_model}` : "not configured",
+    whisper_model: cfg?.whisper_model ? fs10.existsSync(cfg.whisper_model) ? "found" : `not found at ${cfg.whisper_model}` : "not configured",
     research_folder: r ?? "not set up",
     config: cfg,
-    relay_secrets: r && fs8.existsSync(secretsPath(r)) ? "present (stored outside the project folder)" : "none"
+    relay_secrets: r && fs10.existsSync(secretsPath(r)) ? "present (stored outside the project folder)" : "none"
   };
   if (r) {
-    const gi = path8.join(r, ".gitignore");
-    checks.gitignore = fs8.existsSync(gi) && fs8.readFileSync(gi, "utf8").includes("*/sessions/*/media/") ? "protects recordings" : "MISSING: recordings could be committed";
+    const gi = path10.join(r, ".gitignore");
+    checks.gitignore = fs10.existsSync(gi) && fs10.readFileSync(gi, "utf8").includes("*/sessions/*/media/") ? "protects recordings" : "MISSING: recordings could be committed";
   }
   return checks;
 });
@@ -32457,28 +32766,29 @@ tool("setup_init", "Create and configure the research folder. Recordings stay in
   relay_url: external_exports.string().url().optional().describe("Short relay URL for unmoderated tests (relay/template.yaml output)"),
   runner_base_url: external_exports.string().url().optional().describe("Where participant pages are hosted, e.g. https://research.example.com/"),
   whisper_model: external_exports.string().optional().describe("Path to a whisper.cpp model file, e.g. ~/models/ggml-large-v3-turbo.bin"),
-  user_name: external_exports.string().describe("Name of the researcher, recorded in logs and decisions")
+  user_name: external_exports.string().describe("Name of the researcher, recorded in logs and decisions"),
+  model_account: external_exports.enum(["claude-enterprise", "claude-team", "api-bedrock", "api-vertex", "api-anthropic", "cursor"]).optional().describe("The organisation's approved model account in use: Claude Enterprise or Team plan, Claude API via Bedrock, Vertex or Anthropic, or Cursor with an approved Claude model")
 }, (a) => {
-  const r = path8.resolve(a.path);
-  fs8.mkdirSync(path8.join(r, ".proofloop"), { recursive: true });
-  const prev = fs8.existsSync(path8.join(r, ".proofloop", "config.json")) ? loadConfig(r) : {};
-  const cfg = { ...prev, version: 1, location: a.location, product_name: a.product_name ?? prev.product_name ?? null, relay_url: a.relay_url ?? prev.relay_url ?? null, runner_base_url: a.runner_base_url ?? prev.runner_base_url ?? null, whisper_model: a.whisper_model ? a.whisper_model.replace(/^~/, os.homedir()) : prev.whisper_model ?? null, managed_device_confirmed_by: a.user_name, managed_device_confirmed_at: (/* @__PURE__ */ new Date()).toISOString(), created_by: prev.created_by ?? a.user_name };
+  const r = path10.resolve(a.path);
+  fs10.mkdirSync(path10.join(r, ".proofloop"), { recursive: true });
+  const prev = fs10.existsSync(path10.join(r, ".proofloop", "config.json")) ? loadConfig(r) : {};
+  const cfg = { ...prev, version: 1, location: a.location, product_name: a.product_name ?? prev.product_name ?? null, relay_url: a.relay_url ?? prev.relay_url ?? null, runner_base_url: a.runner_base_url ?? prev.runner_base_url ?? null, whisper_model: a.whisper_model ? a.whisper_model.replace(/^~/, os.homedir()) : prev.whisper_model ?? null, model_account: a.model_account ?? prev.model_account ?? null, managed_device_confirmed_by: a.user_name, managed_device_confirmed_at: (/* @__PURE__ */ new Date()).toISOString(), created_by: prev.created_by ?? a.user_name };
   saveConfig(r, cfg);
-  writeText(path8.join(r, ".gitignore"), GITIGNORE);
-  writeText(path8.join(r, ".ignore"), GITIGNORE);
+  writeText(path10.join(r, ".gitignore"), GITIGNORE);
+  writeText(path10.join(r, ".ignore"), GITIGNORE);
   const out = { folder: r, config: cfg };
-  if (a.relay_url || !fs8.existsSync(secretsPath(r))) {
+  if (a.relay_url || !fs10.existsSync(secretsPath(r))) {
     const pinned = a.relay_url ? relayOrigin(a.relay_url) : null;
-    if (!fs8.existsSync(secretsPath(r))) {
+    if (!fs10.existsSync(secretsPath(r))) {
       const s = { relay_secret: newSecret(), admin_token: newSecret(), relay_url: pinned, created_at: (/* @__PURE__ */ new Date()).toISOString() };
-      fs8.mkdirSync(path8.dirname(secretsPath(r)), { recursive: true, mode: 448 });
-      fs8.writeFileSync(secretsPath(r), JSON.stringify(s, null, 2), { mode: 384 });
+      fs10.mkdirSync(path10.dirname(secretsPath(r)), { recursive: true, mode: 448 });
+      fs10.writeFileSync(secretsPath(r), JSON.stringify(s, null, 2), { mode: 384 });
       out.relay_secrets = { stored_at: secretsPath(r), note: "Give RELAY_SECRET and ADMIN_TOKEN from this file to whoever deploys relay/template.yaml. Never commit or paste them in chat." };
     } else {
       const s = readSecrets(r);
       if (pinned && s.relay_url !== pinned) {
         s.relay_url = pinned;
-        fs8.writeFileSync(secretsPath(r), JSON.stringify(s, null, 2), { mode: 384 });
+        fs10.writeFileSync(secretsPath(r), JSON.stringify(s, null, 2), { mode: 384 });
         out.relay_pinned = pinned;
       }
     }
@@ -32495,45 +32805,46 @@ tool("study_create", "Create a study folder from templates: study.yaml, guide.md
   const r = root(folder);
   const cfg = loadConfig(r);
   const d = studyDir(r, slug);
-  if (fs8.existsSync(path8.join(d, "study.yaml"))) throw new Error(`Study ${slug} already exists`);
+  if (fs10.existsSync(path10.join(d, "study.yaml"))) throw new Error(`Study ${slug} already exists`);
   const study = TEMPLATES.study.replace(/__NAME__/g, name).replace(/__SLUG__/g, slug).replace(/__MODE__/g, mode).replace(/__LOCATION__/g, cfg.location).replace(/__PATH__/g, r).replace(/__RELAY__/g, cfg.relay_url ? `
   relay:
-    url: ${cfg.relay_url}` : "");
-  writeText(path8.join(d, "study.yaml"), study);
-  writeText(path8.join(d, "consent", "consent.md"), TEMPLATES.consent.replace(/__NAME__/g, name));
-  if (mode === "moderated") writeText(path8.join(d, "guide.md"), TEMPLATES.guide.replace(/__NAME__/g, name));
-  fs8.mkdirSync(path8.join(d, "context", "sources"), { recursive: true });
+    url: ${cfg.relay_url}` : "").replace(/__ACCOUNT__/g, cfg.model_account ? `
+    account: ${cfg.model_account}` : "");
+  writeText(path10.join(d, "study.yaml"), study);
+  writeText(path10.join(d, "consent", "consent.md"), TEMPLATES.consent.replace(/__NAME__/g, name));
+  if (mode === "moderated") writeText(path10.join(d, "guide.md"), TEMPLATES.guide.replace(/__NAME__/g, name));
+  fs10.mkdirSync(path10.join(d, "context", "sources"), { recursive: true });
   let ctxNote = "empty template";
   if (from_study) {
-    const prevDir = path8.join(studyDir(r, from_study), "context");
-    const versions = fs8.existsSync(path8.join(prevDir, "versions")) ? fs8.readdirSync(path8.join(prevDir, "versions")).filter((v) => /^v\d+$/.test(v)).sort((a, b) => Number(a.slice(1)) - Number(b.slice(1))) : [];
-    const src = versions.length ? path8.join(prevDir, "versions", versions.at(-1), "context.md") : path8.join(prevDir, "context.md");
-    fs8.copyFileSync(src, path8.join(d, "context", "context.md"));
+    const prevDir = path10.join(studyDir(r, from_study), "context");
+    const versions = fs10.existsSync(path10.join(prevDir, "versions")) ? fs10.readdirSync(path10.join(prevDir, "versions")).filter((v) => /^v\d+$/.test(v)).sort((a, b) => Number(a.slice(1)) - Number(b.slice(1))) : [];
+    const src = versions.length ? path10.join(prevDir, "versions", versions.at(-1), "context.md") : path10.join(prevDir, "context.md");
+    fs10.copyFileSync(src, path10.join(d, "context", "context.md"));
     ctxNote = `copied from ${from_study} (${versions.at(-1) ?? "original"})`;
-  } else writeText(path8.join(d, "context", "context.md"), contextTemplate(cfg.product_name ?? name));
+  } else writeText(path10.join(d, "context", "context.md"), contextTemplate(cfg.product_name ?? name));
   appendLog(r, slug, { skill: "plan-study", event: "study_created", mode, context: ctxNote });
   return { folder: d, files: ["study.yaml", "consent/consent.md", ...mode === "moderated" ? ["guide.md"] : [], "context/context.md"], context: ctxNote };
 });
 tool("study_validate", "Validate study.yaml (strict schema with line numbers) and run the research-quality linter: leading wording, UI giveaways in tasks, missing success criteria, research questions without tasks, timing, sample size, consent and privacy.", { folder: folderArg, slug: slugArg }, ({ folder, slug }) => {
   const r = root(folder);
-  const text = fs8.readFileSync(path8.join(studyDir(r, slug), "study.yaml"), "utf8");
+  const text = fs10.readFileSync(path10.join(studyDir(r, slug), "study.yaml"), "utf8");
   const res = parseStudy(text);
   if (res.errors) return { valid: false, errors: res.errors };
-  const ctxF = path8.join(studyDir(r, slug), "context", "context.md");
-  const contextIds = fs8.existsSync(ctxF) ? parseContext(fs8.readFileSync(ctxF, "utf8")).items.map((i) => i.id).filter(Boolean) : [];
+  const ctxF = path10.join(studyDir(r, slug), "context", "context.md");
+  const contextIds = fs10.existsSync(ctxF) ? parseContext(fs10.readFileSync(ctxF, "utf8")).items.map((i) => i.id).filter(Boolean) : [];
   const lint = lintStudy(res.study, { contextIds });
-  const consentF = path8.join(studyDir(r, slug), res.study.spec.consent.file);
-  if (!fs8.existsSync(consentF)) lint.issues.push({ level: "error", where: "spec.consent.file", message: "Consent text file is missing" });
-  else if (!fs8.readFileSync(consentF, "utf8").includes(`${res.study.spec.retention.mediaDays} days`)) lint.issues.push({ level: "error", where: "spec.retention.mediaDays", message: `The consent text doesn't say recordings are deleted after ${res.study.spec.retention.mediaDays} days. Make the consent text and the retention setting agree.` });
+  const consentF = path10.join(studyDir(r, slug), res.study.spec.consent.file);
+  if (!fs10.existsSync(consentF)) lint.issues.push({ level: "error", where: "spec.consent.file", message: "Consent text file is missing" });
+  else if (!fs10.readFileSync(consentF, "utf8").includes(`${res.study.spec.retention.mediaDays} days`)) lint.issues.push({ level: "error", where: "spec.retention.mediaDays", message: `The consent text doesn't say recordings are deleted after ${res.study.spec.retention.mediaDays} days. Make the consent text and the retention setting agree.` });
   return { valid: true, ...lint, blocking: lint.issues.filter((i) => i.level === "error").length };
 });
 tool("context_validate", "Check context/context.md: required sections, an id and a source on every line, sources that exist in context/sources/. Also writes context.html for reading.", { folder: folderArg, slug: slugArg }, ({ folder, slug }) => {
   const r = root(folder);
-  const d = path8.join(studyDir(r, slug), "context");
-  const md = fs8.readFileSync(path8.join(d, "context.md"), "utf8");
-  const sources = fs8.existsSync(path8.join(d, "sources")) ? fs8.readdirSync(path8.join(d, "sources")) : [];
+  const d = path10.join(studyDir(r, slug), "context");
+  const md = fs10.readFileSync(path10.join(d, "context.md"), "utf8");
+  const sources = fs10.existsSync(path10.join(d, "sources")) ? fs10.readdirSync(path10.join(d, "sources")) : [];
   const res = validateContext(md, { sourceFiles: sources });
-  writeText(path8.join(d, "context.html"), pageHtml(res.doc.title ?? "Product context", mdToHtml(md)));
+  writeText(path10.join(d, "context.html"), pageHtml(res.doc.title ?? "Product context", mdToHtml(md)));
   return { ok: res.ok, errors: res.errors, warnings: res.warnings, items: res.doc.items.filter((i) => i.kind === "item").length, sources, html: "context/context.html" };
 });
 function pageHtml(title, body) {
@@ -32549,10 +32860,10 @@ tool("consent_record", "Record a participant's consent before any recording or a
   name: external_exports.string().optional()
 }, ({ folder, slug, participant, method, consent_version, recorded_by, name }) => {
   const r = root(folder);
-  const f = path8.join(studyDir(r, slug), "consent", `${participant}.json`);
+  const f = path10.join(studyDir(r, slug), "consent", `${participant}.json`);
   writeJson(f, { participant, agreed: true, version: consent_version, method, recorded_by, at: (/* @__PURE__ */ new Date()).toISOString(), name: name ?? null });
   appendLog(r, slug, { skill: "run-session", event: "consent_recorded", participant, method });
-  return { saved: path8.relative(r, f) };
+  return { saved: path10.relative(r, f) };
 });
 tool("runner_build", "Generate the participant page for an unmoderated (or moderated-mode click capture) study into <study>/runner/. Host the folder on a company web host or private GitHub Pages; ask the user before publishing anywhere public.", { folder: folderArg, slug: slugArg }, ({ folder, slug }) => {
   const r = root(folder);
@@ -32562,12 +32873,12 @@ tool("runner_build", "Generate the participant page for an unmoderated (or moder
 ${lint.issues.filter((i) => i.level === "error").map((i) => `${i.where}: ${i.message}`).join("\n")}`);
   if (!study.spec.relay?.url) throw new Error("study.yaml has no spec.relay.url, so the page would have nowhere to send results. Deploy the relay and add its URL.");
   if (relayOrigin(study.spec.relay.url) !== pinnedRelay(r)) throw new Error(`study.yaml points at relay ${new URL(study.spec.relay.url).origin}, but this research folder's relay is ${pinnedRelay(r)}. Fix spec.relay.url, or re-run setup_init if the relay really moved.`);
-  const consentF = path8.resolve(studyDir(r, slug), study.spec.consent.file);
+  const consentF = path10.resolve(studyDir(r, slug), study.spec.consent.file);
   if (!isInside(studyDir(r, slug), consentF)) throw new Error("consent.file must be inside the study folder");
-  const consent = fs8.readFileSync(consentF, "utf8");
-  const res = buildRunner(study, consent, path8.join(studyDir(r, slug), "runner"));
+  const consent = fs10.readFileSync(consentF, "utf8");
+  const res = buildRunner(study, consent, path10.join(studyDir(r, slug), "runner"));
   appendLog(r, slug, { skill: "build-runner", files: res.files.length });
-  return { folder: path8.join(studyDir(r, slug), "runner"), files: res.files.map((f) => path8.basename(f)), published_fields: Object.keys(res.public), note: "Only public study fields are in study.js. Moderator names, research questions and storage paths are not published." };
+  return { folder: path10.join(studyDir(r, slug), "runner"), files: res.files.map((f) => path10.basename(f)), published_fields: Object.keys(res.public), note: "Only public study fields are in study.js. Moderator names, research questions and storage paths are not published." };
 });
 tool("runner_links", "Create signed, expiring participant links (one per participant id). Share each link only with that participant.", {
   folder: folderArg,
@@ -32583,9 +32894,9 @@ tool("runner_links", "Create signed, expiring participant links (one per partici
   if (!base) throw new Error("No base_url. Pass where the runner folder is hosted.");
   const links = makeLinks({ baseUrl: base, study: slug, participants, secret: readSecrets(r).relay_secret, days, mode: study.spec.mode });
   appendLog(r, slug, { skill: "build-runner", event: "links_created", participants, days });
-  const file = path8.join(path8.dirname(secretsPath(r)), `links-${slug}.csv`);
-  const prev = fs8.existsSync(file) ? fs8.readFileSync(file, "utf8").trim().split("\n").slice(1).filter((l) => !participants.includes(l.split(",")[0])) : [];
-  fs8.writeFileSync(file, ["participant,expires,url", ...prev, ...links.map((l) => `${l.participant},${l.expires ?? ""},${l.url}`)].join("\n") + "\n", { mode: 384 });
+  const file = path10.join(path10.dirname(secretsPath(r)), `links-${slug}.csv`);
+  const prev = fs10.existsSync(file) ? fs10.readFileSync(file, "utf8").trim().split("\n").slice(1).filter((l) => !participants.includes(l.split(",")[0])) : [];
+  fs10.writeFileSync(file, ["participant,expires,url", ...prev, ...links.map((l) => `${l.participant},${l.expires ?? ""},${l.url}`)].join("\n") + "\n", { mode: 384 });
   return { links_file: file, participants, days, note: "Open the file yourself and send each link only to its participant. Links are not shown here because they work as upload passwords." };
 });
 tool("relay_import", "Import finished unmoderated sessions (and moderated-mode click data) from the short relay into the laptop study folder, verify them, and delete them from the relay.", {
@@ -32599,6 +32910,28 @@ tool("relay_import", "Import finished unmoderated sessions (and moderated-mode c
   void cfg;
   void study;
   return importFromRelay({ root: r, slug, relayUrl: pinnedRelay(r), adminToken: readSecrets(r).admin_token, includeIncomplete: include_incomplete });
+});
+tool("results_import", "Fallback import from the current testing tool: its results CSV (one row per participant) and, optionally, one video file per participant. Rows become sessions P1, P2\u2026 The tool's participant ids stay in a private mapping file; cell values are never returned. Only use for participants who consented in that tool to this research use.", {
+  folder: folderArg,
+  slug: slugArg,
+  csv_path: external_exports.string(),
+  participant_column: external_exports.string().describe("Column with the tool's participant or session id"),
+  tasks: external_exports.array(external_exports.object({
+    task_id: external_exports.string().describe("Task id in study.yaml"),
+    outcome_column: external_exports.string(),
+    success_values: external_exports.array(external_exports.string()).optional().describe("Cell values meaning success (default: success, completed, pass, yes, true, 1\u2026)"),
+    failure_values: external_exports.array(external_exports.string()).optional().describe("Cell values meaning failure or gave up (default: fail, gave up, abandoned, no, false, 0\u2026)"),
+    time_column: external_exports.string().optional().describe("Task time in seconds"),
+    seq_column: external_exports.string().optional().describe("SEQ answer 1 to 7")
+  }).strict()).min(1),
+  sus_columns: external_exports.array(external_exports.string()).length(10).optional().describe("The 10 SUS item columns in order, answers 1 to 5"),
+  video_column: external_exports.string().optional().describe("Column with each participant's video file name"),
+  video_dir: external_exports.string().optional(),
+  consent_confirmed: external_exports.literal(true).describe("The researcher confirms these participants consented in the testing tool to this use"),
+  consent_version: external_exports.string().describe("Which consent text they agreed to, e.g. the tool's standard terms plus our study notice v1")
+}, ({ folder, slug, csv_path, participant_column, tasks, sus_columns, video_column, video_dir, consent_version }) => {
+  const r = root(folder);
+  return importResultsCsv({ root: r, slug, study: loadStudy(r, slug), csvPath: path10.resolve(csv_path), participantColumn: participant_column, tasks, susColumns: sus_columns, videoColumn: video_column, videoDir: video_dir && path10.resolve(video_dir), consentVersion: consent_version });
 });
 tool("studio_open", "Open the Studio for a moderated session: records the call window (participant audio) and the moderator's microphone into the study folder, with guide markers and notes. Requires consent on file.", { folder: folderArg, slug: slugArg, participant: pArg }, async ({ folder, slug, participant }) => {
   const r = root(folder);
@@ -32651,14 +32984,14 @@ tool("observations_submit", "Submit the observations (one idea each, \u2264 40 w
   const r = root(folder);
   const study = loadStudy(r, slug);
   const dir = sessionDir(r, slug, participant);
-  const session = { transcript: readJson(path8.join(dir, "transcript.redacted.json")), events: readJson(path8.join(dir, "events.json"), { events: [] }), frames: readJson(path8.join(dir, "frames.json"), { frames: [] }) };
+  const session = { transcript: readJson(path10.join(dir, "transcript.redacted.json")), events: readJson(path10.join(dir, "events.json"), { events: [] }), frames: readJson(path10.join(dir, "frames.json"), { frames: [] }) };
   const ids = observations.map((o) => o.id.startsWith(`${participant}-`) ? o : { ...o, id: `${participant}-${o.id}` });
   const { accepted, rejected } = verifyObservations({ observations: ids }, session);
   const economy = model !== study.spec.model.research;
-  const prev = replace ? [] : readJson(path8.join(dir, "observations.json"), { observations: [] }).observations;
+  const prev = replace ? [] : readJson(path10.join(dir, "observations.json"), { observations: [] }).observations;
   const byId = new Map(prev.map((o) => [o.id, o]));
   for (const o of accepted) byId.set(o.id, o);
-  writeJson(path8.join(dir, "observations.json"), { participant, model, economy_mode: economy, created_at: (/* @__PURE__ */ new Date()).toISOString(), observations: [...byId.values()] });
+  writeJson(path10.join(dir, "observations.json"), { participant, model, economy_mode: economy, created_at: (/* @__PURE__ */ new Date()).toISOString(), observations: [...byId.values()] });
   appendLog(r, slug, { skill: "analyse-sessions", step: "observations_submit", participant, model, accepted: accepted.length, rejected: rejected.length });
   return { saved: accepted.length, total: byId.size, rejected, ...economy ? { warning: `Model ${model} is not the study's research model (${study.spec.model.research}). Outputs are labelled economy mode.` } : {} };
 });
@@ -32670,12 +33003,12 @@ tool("board_create", "Create the affinity board from all sessions' verified obse
   replace: external_exports.boolean().default(false).describe("Replace an existing board (only if the user asked)")
 }, ({ folder, slug, groups, themes, replace }) => {
   const r = root(folder);
-  const f = path8.join(studyDir(r, slug), "affinity", "board.json");
-  if (fs8.existsSync(f) && !replace) throw new Error("A board already exists. Open it with board_open, or pass replace: true if the user asked to start over.");
-  const sessions = listSessions(r, slug).map((p) => ({ participant: p, observations: readJson(path8.join(sessionDir(r, slug, p), "observations.json"), { observations: [] }).observations })).filter((s) => s.observations.length);
+  const f = path10.join(studyDir(r, slug), "affinity", "board.json");
+  if (fs10.existsSync(f) && !replace) throw new Error("A board already exists. Open it with board_open, or pass replace: true if the user asked to start over.");
+  const sessions = listSessions(r, slug).map((p) => ({ participant: p, observations: readJson(path10.join(sessionDir(r, slug, p), "observations.json"), { observations: [] }).observations })).filter((s) => s.observations.length);
   if (!sessions.length) throw new Error("No verified observations yet. Run analyse-sessions first.");
   const notes = notesFromObservations(sessions);
-  const analysed = listSessions(r, slug).filter((p) => hasConsent(r, slug, p) && fs8.existsSync(path8.join(sessionDir(r, slug, p), "analysis-input.json")));
+  const analysed = listSessions(r, slug).filter((p) => hasConsent(r, slug, p) && fs10.existsSync(path10.join(sessionDir(r, slug, p), "analysis-input.json")));
   const res = createBoard({ study: slug, notes, draft: { groups, themes }, nIncluded: Math.max(analysed.length, sessions.length) });
   if (res.errors) throw new Error(`Board draft rejected:
 ${res.errors.join("\n")}`);
@@ -32685,18 +33018,18 @@ ${res.errors.join("\n")}`);
 });
 tool("board_open", "Open the affinity board in the browser so the researcher can move notes, split, merge and rename groups and themes. Nothing moves on until they mark it done.", { folder: folderArg, slug: slugArg }, async ({ folder, slug }) => {
   const r = root(folder);
-  if (!fs8.existsSync(path8.join(studyDir(r, slug), "affinity", "board.json"))) throw new Error("No board yet. Create it with board_create.");
+  if (!fs10.existsSync(path10.join(studyDir(r, slug), "affinity", "board.json"))) throw new Error("No board yet. Create it with board_create.");
   const s = await localServer(r);
   return { url: `${s.base}/board#k=${s.key}&study=${slug}`, note: "Open in a browser on this laptop." };
 });
 tool("board_summary", "Read the current affinity board with counts (n of N participants, 90% interval, confidence) computed in code.", { folder: folderArg, slug: slugArg, include_notes: external_exports.boolean().default(false) }, ({ folder, slug, include_notes }) => {
   const r = root(folder);
-  const board = readJson(path8.join(studyDir(r, slug), "affinity", "board.json"));
+  const board = readJson(path10.join(studyDir(r, slug), "affinity", "board.json"));
   const s = boardSummary(board);
   if (include_notes) s.board = { themes: board.themes, groups: board.groups, unsorted: board.unsorted, notes: board.notes.map((n) => ({ id: n.id, participant: n.participant, task_id: n.task_id, type: n.type, text: n.text })) };
   return s;
 });
-var insightHash = (i) => crypto6.createHash("sha256").update(JSON.stringify([i.kind, i.title, i.statement, i.severity ?? null, i.hmw ?? null, i.recommendation ?? null, [...i.note_ids ?? []].sort(), i.context_relation])).digest("hex").slice(0, 16);
+var insightHash = (i) => crypto7.createHash("sha256").update(JSON.stringify([i.kind, i.title, i.statement, i.severity ?? null, i.hmw ?? null, i.recommendation ?? null, [...i.note_ids ?? []].sort(), [...i.counter_note_ids ?? []].sort(), i.context_relation])).digest("hex").slice(0, 16);
 var insightSchema = external_exports.object({
   id: external_exports.string().regex(/^ins-[a-z0-9-]+$/),
   kind: external_exports.enum(["pain_point", "opportunity"]),
@@ -32709,6 +33042,7 @@ var insightSchema = external_exports.object({
   group_ids: external_exports.array(external_exports.string()).min(1),
   note_ids: external_exports.array(external_exports.string()).optional(),
   quotes: external_exports.array(external_exports.string()).optional(),
+  counter_note_ids: external_exports.array(external_exports.string()).default([]).describe("Notes where participants did or said the opposite. Strong counter-evidence lowers confidence."),
   context_relation: external_exports.object({ type: external_exports.enum(["confirms", "contradicts", "extends", "new"]), ctx_ids: external_exports.array(external_exports.string()).default([]), explanation: external_exports.string().optional() }).strict()
 }).strict();
 tool("insights_submit", 'Submit insights (pain points with severity, opportunities with a "How might we\u2026" prompt) from the reviewed board, each compared with the product context (confirms / contradicts / extends / new). Requires the board to be marked done. run 2 is the independent second run: its overlap with run 1 marks insights stable.', {
@@ -32721,20 +33055,20 @@ tool("insights_submit", 'Submit insights (pain points with severity, opportuniti
 }, ({ folder, slug, run: run2, model, insights, open_questions }) => {
   const r = root(folder);
   const d = studyDir(r, slug);
-  const board = readJson(path8.join(d, "affinity", "board.json"));
+  const board = readJson(path10.join(d, "affinity", "board.json"));
   if (board.status !== "done") throw new Error("The researcher has not marked the board done. Ask them to finish it first (board_open).");
-  const ctxF = path8.join(d, "context", "context.md");
-  const ctxIds = new Set(fs8.existsSync(ctxF) ? parseContext(fs8.readFileSync(ctxF, "utf8")).items.map((i) => i.id) : []);
+  const ctxF = path10.join(d, "context", "context.md");
+  const ctxIds = new Set(fs10.existsSync(ctxF) ? parseContext(fs10.readFileSync(ctxF, "utf8")).items.map((i) => i.id) : []);
   const { accepted, rejected } = verifyInsights({ insights }, board);
   for (const i of accepted) for (const c of i.context_relation.ctx_ids ?? []) if (!ctxIds.has(c)) rejected.push({ id: i.id, errors: [`unknown context id ${c}`] });
-  const good = accepted.filter((i) => !rejected.some((x) => x.id === i.id)).map((i) => ({ ...i, stats: groupStats(board, { note_ids: i.note_ids }) }));
-  const file = path8.join(d, run2 === 1 ? "insights.json" : "insights.run2.json");
+  const good = accepted.filter((i) => !rejected.some((x) => x.id === i.id)).map((i) => ({ ...i, stats: groupStats(board, { note_ids: i.note_ids }, { counterNoteIds: i.counter_note_ids ?? [] }) }));
+  const file = path10.join(d, run2 === 1 ? "insights.json" : "insights.run2.json");
   const groupIds = new Set(board.groups.map((g) => g.id));
   for (const q of open_questions) for (const g of q.group_ids) if (!groupIds.has(g)) throw new Error(`Open question cites unknown group ${g}`);
   writeJson(file, { run: run2, model, created_at: (/* @__PURE__ */ new Date()).toISOString(), insights: good, open_questions });
   let reviewReset = [];
   if (run2 === 1) {
-    const rf = path8.join(d, "review.json");
+    const rf = path10.join(d, "review.json");
     const rv = readJson(rf, null);
     if (rv) {
       const now = new Map(good.map((i) => [i.id, insightHash(i)]));
@@ -32744,7 +33078,7 @@ tool("insights_submit", 'Submit insights (pain points with severity, opportuniti
     }
   }
   let stability = null;
-  const other = readJson(path8.join(d, run2 === 1 ? "insights.run2.json" : "insights.json"), null);
+  const other = readJson(path10.join(d, run2 === 1 ? "insights.run2.json" : "insights.json"), null);
   if (other) {
     const primary = run2 === 1 ? good : other.insights;
     const second = run2 === 1 ? other.insights : good;
@@ -32768,7 +33102,7 @@ tool("insights_submit", 'Submit insights (pain points with severity, opportuniti
       i.stable = usedP.has(pi);
       if (!i.stable && i.stats.confidence === "high") i.stats.confidence = "medium";
     });
-    writeJson(path8.join(d, "insights.json"), { ...run2 === 1 ? { run: 1, model, open_questions } : readJson(path8.join(d, "insights.json")), insights: primary });
+    writeJson(path10.join(d, "insights.json"), { ...run2 === 1 ? { run: 1, model, open_questions } : readJson(path10.join(d, "insights.json")), insights: primary });
     stability = { stable: primary.filter((i) => i.stable).length, unstable: primary.filter((i) => !i.stable).length };
   }
   appendLog(r, slug, { skill: "synthesise-study", step: "insights_submit", run: run2, model, accepted: good.length, rejected: rejected.length });
@@ -32785,11 +33119,11 @@ tool("review_record", "Record the researcher's decision on one insight: accepted
 }, ({ folder, slug, insight_id, decision, reason, edited, reviewer }) => {
   const r = root(folder);
   const d = studyDir(r, slug);
-  const ins = readJson(path8.join(d, "insights.json")).insights;
+  const ins = readJson(path10.join(d, "insights.json")).insights;
   if (!ins.some((i) => i.id === insight_id)) throw new Error(`Unknown insight ${insight_id}`);
   if (decision === "rejected" && !reason) throw new Error("A rejection needs a reason");
   if (decision === "edited" && !edited) throw new Error("An edit needs the edited fields");
-  const f = path8.join(d, "review.json");
+  const f = path10.join(d, "review.json");
   const rv = readJson(f, { decisions: {} });
   rv.decisions[insight_id] = { decision, reason: reason ?? null, edited: edited ?? null, by: reviewer, at: (/* @__PURE__ */ new Date()).toISOString(), hash: insightHash(ins.find((i) => i.id === insight_id)) };
   writeJson(f, rv);
@@ -32815,19 +33149,19 @@ tool("context_changes_submit", "Propose before/after changes to the product cont
 }, ({ folder, slug, changes }) => {
   const r = root(folder);
   const d = studyDir(r, slug);
-  const md = fs8.readFileSync(path8.join(d, "context", "context.md"), "utf8");
+  const md = fs10.readFileSync(path10.join(d, "context", "context.md"), "utf8");
   const ctx = parseContext(md);
-  const rv = readJson(path8.join(d, "review.json"), { decisions: {} }).decisions;
+  const rv = readJson(path10.join(d, "review.json"), { decisions: {} }).decisions;
   const acceptedIds = new Set(Object.entries(rv).filter(([, v]) => ["accepted", "edited"].includes(v.decision)).map(([k]) => k));
   const errors = validateChanges({ changes }, ctx, acceptedIds);
   if (errors.length) throw new Error(errors.join("\n"));
   const enriched = changes.map((c) => ({ ...c, before: c.action === "add" ? null : ctx.items.find((i) => i.id === c.ctx_id)?.text ?? null, decision: null }));
-  writeJson(path8.join(d, "context-changes.json"), { created_at: (/* @__PURE__ */ new Date()).toISOString(), changes: enriched });
+  writeJson(path10.join(d, "context-changes.json"), { created_at: (/* @__PURE__ */ new Date()).toISOString(), changes: enriched });
   const lines = ["# Proposed changes to the product context", "", "Accept, edit or reject each change. Nothing changes in context.md until you decide.", ""];
   for (const c of enriched) {
     lines.push(`## ${c.id}: ${c.action} ${c.ctx_id ?? c.new_id}`, "", `- **Before:** ${c.before ?? "(not in the product context)"}`, `- **After:** ${c.action === "remove" ? "(removed)" : c.action === "set_status" ? `marked ${c.status}` : c.after}`, `- **Why:** ${c.rationale}`, `- **Evidence:** ${c.insight_ids.join(", ")}`, "");
   }
-  writeText(path8.join(d, "context-changes.md"), lines.join("\n"));
+  writeText(path10.join(d, "context-changes.md"), lines.join("\n"));
   return { proposed: enriched.length, file: "context-changes.md" };
 });
 tool("context_change_decide", "Record the researcher's decision on one proposed context change.", {
@@ -32839,7 +33173,7 @@ tool("context_change_decide", "Record the researcher's decision on one proposed 
   reviewer: external_exports.string()
 }, ({ folder, slug, change_id, decision, edited_after, reviewer }) => {
   const r = root(folder);
-  const f = path8.join(studyDir(r, slug), "context-changes.json");
+  const f = path10.join(studyDir(r, slug), "context-changes.json");
   const doc = readJson(f);
   const c = doc.changes.find((x) => x.id === change_id);
   if (!c) throw new Error(`Unknown change ${change_id}`);
@@ -32850,19 +33184,19 @@ tool("context_change_decide", "Record the researcher's decision on one proposed 
 });
 tool("context_apply", "Apply accepted context changes as a new version in context/versions/vN/ (the original is never overwritten) and render it as HTML.", { folder: folderArg, slug: slugArg }, ({ folder, slug }) => {
   const r = root(folder);
-  const d = path8.join(studyDir(r, slug), "context");
-  const doc = readJson(path8.join(studyDir(r, slug), "context-changes.json"));
+  const d = path10.join(studyDir(r, slug), "context");
+  const doc = readJson(path10.join(studyDir(r, slug), "context-changes.json"));
   const undecided = doc.changes.filter((c) => !c.decision);
   if (undecided.length) throw new Error(`Decide these changes first: ${undecided.map((c) => c.id).join(", ")}`);
   if (doc.applied_as) throw new Error(`These changes were already applied as ${doc.applied_as}.`);
-  const vdir = path8.join(d, "versions");
-  const versions = fs8.existsSync(vdir) ? fs8.readdirSync(vdir).filter((v) => /^v\d+$/.test(v)).map((v) => Number(v.slice(1))) : [];
-  const next = applyChanges(fs8.readFileSync(path8.join(d, "context.md"), "utf8"), doc, slug);
+  const vdir = path10.join(d, "versions");
+  const versions = fs10.existsSync(vdir) ? fs10.readdirSync(vdir).filter((v) => /^v\d+$/.test(v)).map((v) => Number(v.slice(1))) : [];
+  const next = applyChanges(fs10.readFileSync(path10.join(d, "context.md"), "utf8"), doc, slug);
   const vn = `v${(versions.length ? Math.max(...versions) : 0) + 1}`;
-  writeText(path8.join(vdir, vn, "context.md"), next);
-  writeText(path8.join(vdir, vn, "context.html"), pageHtml(`Product context ${vn}`, mdToHtml(next)));
+  writeText(path10.join(vdir, vn, "context.md"), next);
+  writeText(path10.join(vdir, vn, "context.html"), pageHtml(`Product context ${vn}`, mdToHtml(next)));
   const check2 = validateContext(next);
-  writeJson(path8.join(studyDir(r, slug), "context-changes.json"), { ...doc, applied_as: vn, applied_at: (/* @__PURE__ */ new Date()).toISOString() });
+  writeJson(path10.join(studyDir(r, slug), "context-changes.json"), { ...doc, applied_as: vn, applied_at: (/* @__PURE__ */ new Date()).toISOString() });
   appendLog(r, slug, { skill: "update-context", version: vn, applied: doc.changes.filter((c) => ["accepted", "edited"].includes(c.decision)).length });
   return { version: vn, file: `context/versions/${vn}/context.md`, valid: check2.ok, errors: check2.errors };
 });
@@ -32878,6 +33212,14 @@ tool("compare_studies", "Compare task success between an earlier and a later ver
   const r = root(folder);
   return compareStudies({ root: r, before: loadStudy(r, before), after: loadStudy(r, after) });
 });
+tool("study_export", "Package a study for import into the ProofLoop platform (R1) with every id unchanged: a .tar.gz with a manifest of files and SHA-256 hashes, saved in .proofloop/exports/ (not in git). Media, frames and raw transcripts are left out unless include_media is true; session notes, device details, source documents and participant names are always left out. Ask the user before including media.", {
+  folder: folderArg,
+  slug: slugArg,
+  include_media: external_exports.boolean().default(false)
+}, async ({ folder, slug, include_media }) => {
+  const r = root(folder);
+  return exportStudy({ root: r, slug, study: loadStudy(r, slug), includeMedia: include_media, version: VERSION, outDir: path10.join(r, ".proofloop", "exports") });
+});
 tool("cleanup", "Apply retention (delete recordings, screenshots and transcripts older than the study's mediaDays) or erase one participant completely. Run with dry_run first and show the user what will be deleted.", {
   folder: folderArg,
   slug: slugArg,
@@ -32889,25 +33231,25 @@ tool("cleanup", "Apply retention (delete recordings, screenshots and transcripts
   const d = studyDir(r, slug);
   const del = [];
   if (participant) {
-    del.push(sessionDir(r, slug, participant), path8.join(d, "consent", `${participant}.json`));
+    del.push(sessionDir(r, slug, participant), path10.join(d, "consent", `${participant}.json`));
   } else {
     const limit = Date.now() - study.spec.retention.mediaDays * 864e5;
     for (const p of listSessions(r, slug)) {
       const sd = sessionDir(r, slug, p);
-      const rec = readJson(path8.join(sd, "recording.json"), null);
-      const when = Date.parse(rec?.ended_at ?? rec?.imported_at ?? "") || fs8.statSync(sd).mtimeMs;
+      const rec = readJson(path10.join(sd, "recording.json"), null);
+      const when = Date.parse(rec?.ended_at ?? rec?.imported_at ?? "") || fs10.statSync(sd).mtimeMs;
       if (when < limit) for (const x of ["media", "frames", ".incoming", "transcript.json", "transcript.redacted.json", "analysis-input.json", "answers.json", "notes.md", "device.json"]) {
-        const f = path8.join(sd, x);
-        if (fs8.existsSync(f)) del.push(f);
+        const f = path10.join(sd, x);
+        if (fs10.existsSync(f)) del.push(f);
       }
     }
   }
-  const existing = del.filter((f) => fs8.existsSync(f) && isInside(r, f));
-  const boardF = path8.join(d, "affinity", "board.json");
+  const existing = del.filter((f) => fs10.existsSync(f) && isInside(r, f));
+  const boardF = path10.join(d, "affinity", "board.json");
   const board = participant ? readJson(boardF, null) : null;
   const notesToDrop = board ? board.notes.filter((n) => n.participant === participant).map((n) => n.id) : [];
   if (!dry_run) {
-    for (const f of existing) fs8.rmSync(f, { recursive: true, force: true });
+    for (const f of existing) fs10.rmSync(f, { recursive: true, force: true });
     if (notesToDrop.length) {
       const drop = new Set(notesToDrop);
       const theirQuotes = new Set(board.notes.filter((n) => drop.has(n.id)).flatMap((n) => (n.evidence ?? []).filter((e) => e.kind === "quote").map((e) => e.quote)));
@@ -32923,7 +33265,7 @@ tool("cleanup", "Apply retention (delete recordings, screenshots and transcripts
       board.status = "draft";
       writeJson(boardF, board);
       for (const f of ["insights.json", "insights.run2.json"]) {
-        const doc = readJson(path8.join(d, f), null);
+        const doc = readJson(path10.join(d, f), null);
         if (doc) {
           doc.stale = `participant ${participant} erased ${(/* @__PURE__ */ new Date()).toISOString()}`;
           for (const i of doc.insights) {
@@ -32931,20 +33273,20 @@ tool("cleanup", "Apply retention (delete recordings, screenshots and transcripts
             i.note_ids = i.note_ids.filter((n) => !drop.has(n));
             i.quotes = (i.quotes ?? []).filter((q) => ![...theirQuotes].some((t) => t.includes(q) || q.includes(t)));
           }
-          writeJson(path8.join(d, f), doc);
+          writeJson(path10.join(d, f), doc);
         }
       }
-      const rf = path8.join(d, "review.json");
+      const rf = path10.join(d, "review.json");
       const rv = readJson(rf, null);
       if (rv) {
         for (const id of touched) delete rv.decisions[id];
         writeJson(rf, rv);
       }
-      for (const f of ["report.md", "report.html"]) fs8.rmSync(path8.join(d, f), { force: true });
+      for (const f of ["report.md", "report.html"]) fs10.rmSync(path10.join(d, f), { force: true });
     }
-    appendLog(r, slug, { skill: "cleanup", participant: participant ?? null, deleted: existing.map((f) => path8.relative(r, f)) });
+    appendLog(r, slug, { skill: "cleanup", participant: participant ?? null, deleted: existing.map((f) => path10.relative(r, f)) });
   }
-  return { dry_run, delete: existing.map((f) => path8.relative(r, f)), board_notes_removed: notesToDrop.length, note: notesToDrop.length ? "Board notes and quotes from this participant are removed, the board is reopened, and report.md/report.html are deleted. Insights are marked stale: re-check the board, re-run synthesis and review, then render the report again. Re-send any report copies already shared." : void 0 };
+  return { dry_run, delete: existing.map((f) => path10.relative(r, f)), board_notes_removed: notesToDrop.length, note: notesToDrop.length ? "Board notes and quotes from this participant are removed, the board is reopened, and report.md/report.html are deleted. Insights are marked stale: re-check the board, re-run synthesis and review, then render the report again. Re-send any report copies already shared." : void 0 };
 });
 tool("usage_log", "Record time spent and model use for a skill run (feeds the Spike S4 time-saved measure).", {
   folder: folderArg,

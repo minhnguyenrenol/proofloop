@@ -119,8 +119,10 @@ export function applyOp(board, op, by = 'researcher') {
   return board;
 }
 
-export function groupStats(board, group) {
+// counterNoteIds: notes where people did or said the opposite (H.5 counter-evidence).
+export function groupStats(board, group, { counterNoteIds = [] } = {}) {
   const notes = group.note_ids.map((id) => board.notes.find((n) => n.id === id)).filter(Boolean);
+  const counterParticipants = [...new Set(counterNoteIds.map((id) => board.notes.find((n) => n.id === id)?.participant).filter(Boolean))];
   const participants = [...new Set(notes.map((n) => n.participant))];
   // H.5: behaviour means a behaviour observation (verified against events
   // or frames on submit) or any note citing a logged event. A frame alone
@@ -135,7 +137,8 @@ export function groupStats(board, group) {
     ci90: N > 0 && participants.length <= N ? adjustedWald(participants.length, N) : null,
     has_behaviour: hasBehaviour,
     has_verbal: hasVerbal,
-    confidence: confidence({ sessions: participants.length, nIncluded: N, hasBehaviour, hasVerbal }),
+    counter_sessions: counterParticipants.length,
+    confidence: confidence({ sessions: participants.length, nIncluded: N, hasBehaviour, hasVerbal, counterSessions: counterParticipants.length }),
   };
 }
 

@@ -17,6 +17,7 @@ const PROTECTED = [
   [/\/sessions\/[^/]+\/transcript\.json$/, 'raw transcripts may contain personal details. Read transcript.redacted.json or analysis-input.json instead.'],
   [/\/sessions\/[^/]+\/(answers|device)\.json$/, 'raw answers are read by the plugin tools, not directly.'],
   [/\/sessions\/[^/]+\/notes\.md$/, 'session notes are unredacted. The plugin includes them, redacted, in analysis-input.json.'],
+  [/\/\.proofloop\/exports\//, 'study export packages hold raw answers (and media if included). Share the file; don\'t read it.'],
   [/\/consent\/[^/]+\.json$/, 'consent records hold participant names; the plugin tools read them for you.'],
   [/\/context\/sources(\/|$)/, 'source documents are read through the add-context skill, which records what was used.'],
 ];

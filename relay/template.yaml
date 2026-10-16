@@ -3,11 +3,16 @@ Transform: AWS::Serverless-2016-10-31
 Description: >
   Proofloop short relay. Participants' recordings wait here until the
   researcher's plugin imports them into the laptop study folder. Objects
-  are encrypted, private, and deleted by lifecycle rule after 1 day.
+  are encrypted, private, and deleted by lifecycle rule after RetentionDays
+  (default 1, at most 7). Link and admin secrets live in Secrets Manager,
+  not in Lambda environment variables.
 
 Parameters:
-  RelaySecret: { Type: String, NoEcho: true, MinLength: 32, Description: HMAC key for participant links (same value as the plugin's secrets file) }
-  AdminToken: { Type: String, NoEcho: true, MinLength: 32, Description: Bearer token the plugin uses to import and delete }
+  # AllowedPattern: printable ASCII without space, double quote or backslash,
+  # so the values cannot break out of the JSON SecretString below.
+  RelaySecret: { Type: String, NoEcho: true, MinLength: 32, AllowedPattern: '^[!#-\[\]-~]+$', ConstraintDescription: 'printable ASCII, no spaces, quotes or backslashes', Description: HMAC key for participant links (same value as the plugin's secrets file) }
+  AdminToken: { Type: String, NoEcho: true, MinLength: 32, AllowedPattern: '^[!#-\[\]-~]+$', ConstraintDescription: 'printable ASCII, no spaces, quotes or backslashes', Description: Bearer token the plugin uses to import and delete }
+  RetentionDays: { Type: Number, Default: 1, MinValue: 1, MaxValue: 7, Description: "Days uploads may wait in the relay before deletion (FR-PLG-009: 1 by default, at most 7)" }
   AllowedOrigins: { Type: String, Description: "Comma-separated origins that host the participant page, e.g. https://research.example.com" }
 
 Resources:
@@ -22,7 +27,7 @@ Resources:
       OwnershipControls: { Rules: [{ ObjectOwnership: BucketOwnerEnforced }] }
       LifecycleConfiguration:
         Rules:
-          - { Id: delete-after-1-day, Status: Enabled, ExpirationInDays: 1, AbortIncompleteMultipartUpload: { DaysAfterInitiation: 1 } }
+          - { Id: delete-after-retention, Status: Enabled, ExpirationInDays: !Ref RetentionDays, AbortIncompleteMultipartUpload: { DaysAfterInitiation: 1 } }
       CorsConfiguration:
         CorsRules:
           - AllowedMethods: [PUT]
@@ -43,6 +48,13 @@ Resources:
             Resource: [!GetAtt RelayBucket.Arn, !Sub '${RelayBucket.Arn}/*']
             Condition: { Bool: { 'aws:SecureTransport': 'false' } }
 
+  RelaySecrets:
+    Type: AWS::SecretsManager::Secret
+    Properties:
+      Description: Proofloop relay link-signing secret and admin token
+      KmsKeyId: alias/aws/secretsmanager
+      SecretString: !Sub '{"relay_secret":"${RelaySecret}","admin_token":"${AdminToken}"}'
+
   RelayFunction:
     Type: AWS::Serverless::Function
     Properties:
@@ -56,8 +68,8 @@ Resources:
       Environment:
         Variables:
           BUCKET: !Ref RelayBucket
-          RELAY_SECRET: !Ref RelaySecret
-          ADMIN_TOKEN: !Ref AdminToken
+          SECRET_ARN: !Ref RelaySecrets
+          RETENTION_DAYS: !Ref RetentionDays
           ALLOWED_ORIGINS: !Ref AllowedOrigins
       Policies:
         - Statement:
@@ -67,6 +79,11 @@ Resources:
             - Effect: Allow
               Action: [s3:ListBucket]
               Resource: !GetAtt RelayBucket.Arn
+            # Read this one secret only. The AWS managed key's policy lets
+            # Secrets Manager decrypt on the role's behalf.
+            - Effect: Allow
+              Action: [secretsmanager:GetSecretValue]
+              Resource: !Ref RelaySecrets
       FunctionUrlConfig:
         AuthType: NONE
       LoggingConfig: { LogFormat: JSON, ApplicationLogLevel: WARN }

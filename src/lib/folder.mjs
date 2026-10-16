@@ -96,6 +96,7 @@ export const GITIGNORE = `# Proofloop: never commit recordings, consent records 
 */consent/*.json
 */context/sources/
 .proofloop/secrets*
+.proofloop/exports/
 *.tmp-*
 `;
 

@@ -82,6 +82,10 @@ export function verifyInsights(doc, board) {
     for (const g of gids) if (!groups.has(g)) errors.push(`unknown group ${g}`);
     const nids = ins.note_ids?.length ? ins.note_ids : gids.flatMap((g) => groups.get(g)?.note_ids ?? []);
     for (const n of nids) if (!notes.has(n)) errors.push(`unknown note ${n}`);
+    for (const n of ins.counter_note_ids ?? []) {
+      if (!notes.has(n)) errors.push(`unknown counter note ${n}`);
+      else if (nids.includes(n)) errors.push(`note ${n} can't be both evidence and counter-evidence`);
+    }
     for (const q of ins.quotes ?? []) {
       const ok = nids.some((n) => (notes.get(n)?.evidence ?? []).some((e) => e.kind === 'quote' && containsInOrder(e.quote, q)));
       if (!ok) errors.push(`quote "${String(q).slice(0, 40)}" is not from this insight's notes`);

@@ -19,8 +19,10 @@ Notes for your privacy team and DPIA. They describe what v0.1 does; your organis
 ## Data flows
 
 1. **Moderated:** the call app → Studio on `127.0.0.1` → study folder. Nothing leaves the device.
-2. **Unmoderated:** participant's browser → short relay bucket (encrypted, private, deleted within 24 hours) → `relay_import` → study folder. The relay copy is deleted as soon as it is imported.
-3. **AI analysis:** only `analysis-input.json` is sent to the model, through Claude Code or Cursor under your company's agreement. It holds the **redacted** transcript with speakers as roles, events, and up to 20 key frames. Media files, raw transcripts and consent records are blocked from the model by the guard hook.
+2. **Unmoderated:** participant's browser → short relay bucket (encrypted, private, deleted after the relay's retention period: 24 hours by default, at most 7 days) → `relay_import` → study folder. The relay copy is deleted as soon as it is imported.
+3. **Testing tool fallback:** the tool's CSV export and downloaded videos → `results_import` → study folder. Only the mapped columns are read; the tool's participant ids are kept in a private mapping file.
+4. **Export to the platform:** `study_export` → `.proofloop/exports/*.tar.gz` on the laptop. Media, raw transcripts, session notes, device details, source documents and participant names are left out by default; media is added only when you ask. Move the file only to an approved company system.
+5. **AI analysis:** only `analysis-input.json` is sent to the model, through Claude Code or Cursor under your company's agreement. It holds the **redacted** transcript with speakers as roles, events, and up to 20 key frames. Media files, raw transcripts and consent records are blocked from the model by the guard hook.
 
 ## Redaction
 

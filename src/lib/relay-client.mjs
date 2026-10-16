@@ -19,7 +19,8 @@ async function call(relayUrl, adminToken, method, p, query) {
 }
 
 export async function importFromRelay({ root, slug, relayUrl, adminToken, includeIncomplete = false, keepOnRelay = false, now = Date.now() }) {
-  const { objects } = await call(relayUrl, adminToken, 'GET', '/list', { study: slug });
+  const { objects, retention_days: retentionDays = 1 } = await call(relayUrl, adminToken, 'GET', '/list', { study: slug });
+  const limitH = retentionDays * 24;
   const byP = new Map();
   for (const o of objects) {
     const [, p, name] = o.key.split('/');
@@ -42,7 +43,7 @@ export async function importFromRelay({ root, slug, relayUrl, adminToken, includ
     const ageH = (now - newest) / 3600000;
     if (!done && !(includeIncomplete && ageH > 2)) {
       report.skipped.push({ participant: p, reason: done ? '' : `not finished yet (last upload ${ageH.toFixed(1)} h ago)` });
-      if (ageH > 20) report.warnings.push(`${p}: unfinished and close to the 24-hour relay limit. Import with include_incomplete to keep what arrived.`);
+      if (ageH > limitH - 4) report.warnings.push(`${p}: unfinished and close to the ${limitH}-hour relay limit. Import with include_incomplete to keep what arrived.`);
       continue;
     }
     // A link stays valid for days. Uploads that arrive after a session was
@@ -111,7 +112,23 @@ export async function importFromRelay({ root, slug, relayUrl, adminToken, includ
       fs.rmSync(stage, { recursive: true, force: true });
     }
   }
-  appendLog(root, slug, { skill: 'import-sessions', source: 'relay', imported: report.imported.map((x) => x.participant), deleted_from_relay: report.deleted, warnings: report.warnings });
+  // FR-PLG-009: a session seen on the relay that is gone before it was
+  // imported has been deleted by the relay's time limit. Say so once.
+  const seenF = path.join(studyDir(root, slug), '.relay-seen.json');
+  const seen = readJson(seenF, { participants: {} });
+  for (const p of byP.keys()) seen.participants[p] = { last_seen: new Date(now).toISOString(), reported_lost: false };
+  report.lost = [];
+  for (const [p, info] of Object.entries(seen.participants)) {
+    if (byP.has(p) || info.reported_lost) continue;
+    if (fs.existsSync(path.join(sessionDir(root, slug, p), 'recording.json')) || fs.existsSync(path.join(sessionDir(root, slug, p), 'runner-import.json'))) { delete seen.participants[p]; continue; }
+    info.reported_lost = true;
+    report.lost.push(p);
+    report.warnings.push(`${p}: uploads were waiting on the relay (last seen ${info.last_seen}) but were deleted by its ${limitH}-hour limit before they were imported. That session is lost; invite ${p} again with a new link if needed.`);
+  }
+  for (const x of report.imported) delete seen.participants[x.participant];
+  writeJson(seenF, seen);
+  report.retention_hours = limitH;
+  appendLog(root, slug, { skill: 'import-sessions', source: 'relay', lost: report.lost, imported: report.imported.map((x) => x.participant), deleted_from_relay: report.deleted, warnings: report.warnings });
   return report;
 }
 

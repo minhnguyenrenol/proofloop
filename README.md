@@ -2,7 +2,7 @@
 
 Plan, run and synthesise **moderated and unmoderated prototype tests** from inside Claude Code or Cursor. Prototypes can be Figma links, GitHub-hosted builds or any HTTPS page. Findings come back as evidence-checked pain points and opportunities, mapped against your product vision, personas and journeys, with a before/after view of what testing changed.
 
-> Version 0.1 (R0 in the spec). Built for internal staff and consented customers. Recordings stay on a company-managed laptop or company drive. They never go to git, chat or any third party.
+> Version 0.2 (R0 in the spec). Built for internal staff and consented customers. Recordings stay on a company-managed laptop or company drive. They never go to git, chat or any third party.
 
 ## What it does
 
@@ -13,13 +13,14 @@ Plan, run and synthesise **moderated and unmoderated prototype tests** from insi
 | Plan | `plan-study` | Writes `study.yaml`, consent and discussion guide; lints tasks for leading wording and UI giveaways |
 | Unmoderated | `build-runner` | Builds a static participant page (consent, mic and tab check, tasks on the prototype, SEQ, SUS) and signed links |
 | Moderated | `run-session` | Opens the local **Studio** to record your Zoom, Meet or Teams call with separate moderator and participant tracks, markers and notes |
-| Import | `import-sessions` | Pulls unmoderated sessions from the relay into the study folder (then deletes them there), or imports call recordings and transcripts |
+| Import | `import-sessions` | Pulls unmoderated sessions from the relay into the study folder (then deletes them there), or imports call recordings and transcripts. Fallback: results CSV and videos exported from your current testing tool |
 | Analyse | `analyse-sessions` | Per-session observations. Every quote must match the transcript word for word; every behaviour must cite an event or frame. Moderator speech is never evidence |
 | Synthesise | `synthesise-study` | NN/g affinity mapping, bottom-up. AI drafts groups, you finish them on the drag-and-drop **board**, then insights are compared with the product context |
 | Review | `review-findings` | You accept, edit or reject each insight. Only accepted ones reach the report |
 | Feed back | `update-context`, `apply-findings` | Proposed before/after changes to personas, journeys and problem statements, and to the prototype itself, each linked to its evidence |
 | Re-test | `plan-retest` | Next study version with the same tasks word for word, then a before/after comparison of task success with 90% intervals |
 | Retention | `cleanup` | Deletes media after 90 days, or erases one participant completely |
+| Export | `export-study` | Packages a study for the ProofLoop platform with every id unchanged; media left out unless you ask |
 
 Counts ("3 of 5 participants"), confidence, task success with 90% intervals, SEQ and SUS are all **computed in code**, never written by the model.
 
@@ -72,7 +73,7 @@ See [examples/savings-demo](examples/savings-demo) for a complete synthetic stud
 ## Privacy by design
 
 - **No emotion recognition.** No facial expression or "emotion" analysis from video. Feelings are reported only in participants' own words.
-- **Recordings stay put.** Media lives in the study folder on a managed device. The short relay holds unmoderated uploads for at most 24 hours and the plugin deletes them on import.
+- **Recordings stay put.** Media lives in the study folder on a managed device. The short relay holds unmoderated uploads for 24 hours by default (at most 7 days) and the plugin deletes them on import.
 - **Redaction before AI.** Names, emails, AU phone numbers, card numbers (Luhn-checked), BSB, account numbers and TFNs are redacted before any transcript reaches the model; speakers become roles.
 - **Guard hook.** Claude Code and Cursor are blocked from reading media, raw transcripts or consent files, and from adding research data to git.
 - **Consent first.** The Studio won't record without a consent record; the participant page won't start without the checkbox.

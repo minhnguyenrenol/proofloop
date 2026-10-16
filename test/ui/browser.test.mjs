@@ -13,7 +13,7 @@ import { Client } from '@modelcontextprotocol/sdk/client/index.js';
 import { StdioClientTransport } from '@modelcontextprotocol/sdk/client/stdio.js';
 import { startLocalRelay } from '../../relay/local.mjs';
 
-const SERVER = process.env.PROOFLOOP_SERVER ?? path.resolve('src/server.mjs');
+const SERVER = path.resolve(process.env.PROOFLOOP_SERVER ?? 'src/server.mjs');
 const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'proofloop-ui-'));
 const home = path.join(tmp, 'home');
 const project = path.join(tmp, 'project');

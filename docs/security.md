@@ -24,7 +24,8 @@
 
 ## Known limits
 
-- **Relay secrets in Lambda environment variables.** They are encrypted at rest, but anyone with `lambda:GetFunctionConfiguration` can read them. Restrict that permission, or move them to Secrets Manager (planned). Concurrency is capped at 10 to bound cost under a flood.
+- **Relay secrets in Secrets Manager.** The function reads them at start-up; anyone with `secretsmanager:GetSecretValue` on that secret, or who can change the function's code, can still obtain them. Restrict both. The values are also CloudFormation parameters, so use `NoEcho` (already set) and don't keep them in shell history. Concurrency is capped at 10 to bound cost under a flood.
+- **Export packages.** A study export holds raw survey answers (and media if included). It is written with owner-only permissions to `.proofloop/exports/`, which git ignores and the guard hook blocks from the agent; moving it is the user's job.
 - **Participant page CSP.** It is set with a meta tag, which can't carry `frame-ancestors`, and `connect-src` allows `https://*.amazonaws.com` because the page doesn't know the bucket name. When hosting, also send `Content-Security-Policy: frame-ancestors 'none'` as a header, and narrow `connect-src` to your bucket's host if your host supports headers.
 - **Guard hook.** It resolves paths and blocks shell commands that touch protected research files unless they only list names (`ls`, `du`, `find` without `-exec`). A determined person can still get round it, for example by building a path inside a script; it protects against accidents and prompt injection, not against the user.
 - **Redaction is pattern-based.** See [privacy.md](privacy.md).

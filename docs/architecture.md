@@ -45,3 +45,13 @@ A new browser recording can't be joined onto the old one, and asking again for s
 
 ### ADR-9: Bundled server committed to git
 `dist/server.mjs` is a single esbuild bundle with no runtime dependencies, so installing the plugin needs no `npm install`. CI checks the bundle matches the source.
+
+### ADR-10: Relay secrets in Secrets Manager
+The relay's HMAC secret and admin token are kept in AWS Secrets Manager and read once per cold start with a signed request, so they don't appear in the function's configuration, console or deployment logs. Local runs can still pass them as environment variables. The function gets read access to that one secret only.
+
+### ADR-11: Export as a plain tar.gz with a manifest
+The R1 platform will import R0 studies as they are, so the export keeps the folder layout and every id, and lists each file with its SHA-256. A standard archive needs no special tool to inspect. Data the platform doesn't need (session notes, device details, source documents, participant names) is never exported; media is opt-in.
+
+### ADR-12: Testing tool results as sessions
+Studies run in the existing testing tool can still use synthesis and re-test comparison. Each CSV row becomes a session with task start and end events from the tool's outcome and time, so task metrics are computed by the same code as for ProofLoop sessions. The tool's success definition is taken as given; this is stated in the import result.
+

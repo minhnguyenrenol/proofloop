@@ -81,6 +81,8 @@ export const StudySchema = z.object({
     model: z.object({
       research: z.string().default('claude-opus-5-5'),
       economyMode: z.boolean().default(false),
+      // FR-PLG-013: which approved model account runs the research steps.
+      account: z.enum(['claude-enterprise', 'claude-team', 'api-bedrock', 'api-vertex', 'api-anthropic', 'cursor']).optional(),
     }).strict().default({}),
     blocks: z.array(block).min(1),
   }).strict(),
@@ -151,6 +153,7 @@ export function lintStudy(study, { contextIds = [] } = {}) {
   if (s.mode === 'moderated' && !s.moderators.length) add('error', 'spec.moderators', 'List moderator names so their speech is never counted as participant evidence.');
   if (s.participants.type !== 'internal' && s.storage.location === 'laptop') add('info', 'spec.storage', 'Customer recordings on a laptop: confirm the laptop is company-managed with disk encryption, and that the folder is backed up.');
   if (s.recording.camera && s.participants.type !== 'internal') add('warning', 'spec.recording.camera', 'Camera video of customers adds privacy risk and is not analysed (no facial or emotion analysis). Turn it off unless you need it for a highlight reel.');
+  if (!s.model.account) add(s.participants.type === 'internal' ? 'warning' : 'error', 'spec.model.account', 'Record which approved model account runs the analysis (claude-enterprise, claude-team, api-bedrock, api-vertex, api-anthropic or cursor). Customer sessions need it.');
   if (s.model.economyMode) add('warning', 'spec.model', 'Economy mode: lower-quality model for research steps. Every output will be labelled.');
   if (!study.spec.blocks.some((b) => b.type === 'instructions' && /think aloud|think out loud|say what you('re| are) thinking/i.test(b.text))) {
     add('info', 'blocks', 'No think-aloud instruction found. Ask people to say what they are thinking as they go.');

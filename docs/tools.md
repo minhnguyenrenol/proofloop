@@ -24,6 +24,7 @@ Create and configure the research folder. Recordings stay in this folder on a co
 | `runner_base_url` | string |  | Where participant pages are hosted, e.g. https://research.example.com/ |
 | `whisper_model` | string |  | Path to a whisper.cpp model file, e.g. ~/models/ggml-large-v3-turbo.bin |
 | `user_name` | string | yes | Name of the researcher, recorded in logs and decisions |
+| `model_account` | string: claude-enterprise, claude-team, api-bedrock, api-vertex, api-anthropic, cursor |  | The organisation's approved model account in use: Claude Enterprise or Team plan, Claude API via Bedrock, Vertex or Anthropic, or Cursor with an approved Claude model |
 
 ## study_create
 
@@ -99,6 +100,23 @@ Import finished unmoderated sessions (and moderated-mode click data) from the sh
 | `folder` | string |  | Research folder path; defaults to ./research found from the working directory |
 | `slug` | string | yes | Study folder name, e.g. savings-onboarding-v1 |
 | `include_incomplete` | boolean |  |  |
+
+## results_import
+
+Fallback import from the current testing tool: its results CSV (one row per participant) and, optionally, one video file per participant. Rows become sessions P1, P2… The tool's participant ids stay in a private mapping file; cell values are never returned. Only use for participants who consented in that tool to this research use.
+
+| Parameter | Type | Required | Notes |
+|---|---|---|---|
+| `folder` | string |  | Research folder path; defaults to ./research found from the working directory |
+| `slug` | string | yes | Study folder name, e.g. savings-onboarding-v1 |
+| `csv_path` | string | yes |  |
+| `participant_column` | string | yes | Column with the tool's participant or session id |
+| `tasks` | array | yes |  |
+| `sus_columns` | array |  | The 10 SUS item columns in order, answers 1 to 5 |
+| `video_column` | string |  | Column with each participant's video file name |
+| `video_dir` | string |  |  |
+| `consent_confirmed` | boolean | yes | The researcher confirms these participants consented in the testing tool to this use |
+| `consent_version` | string | yes | Which consent text they agreed to, e.g. the tool's standard terms plus our study notice v1 |
 
 ## studio_open
 
@@ -263,6 +281,16 @@ Compare task success between an earlier and a later version of a study (re-test)
 | `folder` | string |  | Research folder path; defaults to ./research found from the working directory |
 | `before` | string | yes | Study folder name, e.g. savings-onboarding-v1 |
 | `after` | object | yes |  |
+
+## study_export
+
+Package a study for import into the ProofLoop platform (R1) with every id unchanged: a .tar.gz with a manifest of files and SHA-256 hashes, saved in .proofloop/exports/ (not in git). Media, frames and raw transcripts are left out unless include_media is true; session notes, device details, source documents and participant names are always left out. Ask the user before including media.
+
+| Parameter | Type | Required | Notes |
+|---|---|---|---|
+| `folder` | string |  | Research folder path; defaults to ./research found from the working directory |
+| `slug` | string | yes | Study folder name, e.g. savings-onboarding-v1 |
+| `include_media` | boolean |  |  |
 
 ## cleanup
 

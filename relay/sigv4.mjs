@@ -1,4 +1,5 @@
-// Minimal AWS Signature Version 4 query-string presigning for S3.
+// Minimal AWS Signature Version 4: query-string presigning for S3 and
+// header signing for JSON APIs (Secrets Manager).
 // No SDK, so the relay has zero dependencies and is easy to audit.
 
 import crypto from 'node:crypto';
@@ -46,4 +47,43 @@ export function presign({ method, host, path: objectPath, query = {}, region, ac
   const kSigning = hmac(kService, 'aws4_request');
   const signature = crypto.createHmac('sha256', kSigning).update(stringToSign, 'utf8').digest('hex');
   return `https://${host}${uriEncode(objectPath, true)}?${canonicalQuery}&X-Amz-Signature=${signature}`;
+}
+
+// Header signing (Authorization header) for AWS JSON APIs such as Secrets
+// Manager. Returns the headers to send: the caller's headers plus host,
+// x-amz-date, x-amz-security-token (when a session token is given) and
+// authorization. Header names are lower-cased; all given headers are signed.
+// Paths are expected to be already-normalised (e.g. "/"); each segment is
+// URI-encoded once.
+export function signRequest({ method = 'GET', host, path: reqPath = '/', query = {}, region, service, headers = {}, body = '', accessKeyId, secretAccessKey, sessionToken, now = new Date(), contentSha256 = false }) {
+  if (!host || !region || !service) throw new Error('host, region and service are required');
+  if (!accessKeyId || !secretAccessKey) throw new Error('AWS credentials are required');
+  const datetime = amzDate(now);
+  const date = datetime.slice(0, 8);
+  const payloadHash = sha256hex(body ?? '');
+  const hdrs = {};
+  for (const [k, v] of Object.entries(headers)) hdrs[k.toLowerCase()] = String(v).trim().replace(/\s+/g, ' ');
+  hdrs.host = host;
+  hdrs['x-amz-date'] = datetime;
+  if (sessionToken) hdrs['x-amz-security-token'] = sessionToken;
+  if (contentSha256) hdrs['x-amz-content-sha256'] = payloadHash;
+  delete hdrs.authorization;
+  const names = Object.keys(hdrs).sort();
+  const signedHeaders = names.join(';');
+  const canonicalQuery = Object.keys(query)
+    .sort()
+    .map((k) => `${uriEncode(k)}=${uriEncode(String(query[k]))}`)
+    .join('&');
+  const scope = `${date}/${region}/${service}/aws4_request`;
+  const canonicalRequest = [method, uriEncode(reqPath, true), canonicalQuery, names.map((n) => `${n}:${hdrs[n]}\n`).join(''), signedHeaders, payloadHash].join('\n');
+  const stringToSign = ['AWS4-HMAC-SHA256', datetime, scope, sha256hex(canonicalRequest)].join('\n');
+  const kDate = hmac(`AWS4${secretAccessKey}`, date);
+  const kRegion = hmac(kDate, region);
+  const kService = hmac(kRegion, service);
+  const kSigning = hmac(kService, 'aws4_request');
+  const signature = crypto.createHmac('sha256', kSigning).update(stringToSign, 'utf8').digest('hex');
+  return {
+    ...hdrs,
+    authorization: `AWS4-HMAC-SHA256 Credential=${accessKeyId}/${scope}, SignedHeaders=${signedHeaders}, Signature=${signature}`,
+  };
 }
