@@ -1,0 +1,286 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>How to use ProofLoop</title>
+<meta name="description" content="Step-by-step guide to running a user test with the ProofLoop Research Copilot in Claude Code or Cursor.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Newsreader:opsz,wght@6..72,400;6..72,600&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --paper: #f7f6f2; --sheet: #fffefb; --ink: #1d1d1b; --ink-2: #4b4b45; --rule: #dcdad2;
+    --signal: #0b57d0; --signal-soft: #e6eefb; --signal-ink: #0a3f96; --ok: #146c2e;
+    --code-bg: #1d1d1b; --code-ink: #f2f1ec;
+    --serif: "Newsreader", Georgia, serif; --sans: "IBM Plex Sans", system-ui, sans-serif; --mono: "IBM Plex Mono", ui-monospace, monospace;
+    color-scheme: light;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root { --paper: #131312; --sheet: #1b1b19; --ink: #ecebe6; --ink-2: #b4b3ab; --rule: #34332f;
+      --signal: #8ab4f8; --signal-soft: #1b2a44; --signal-ink: #b7d0fb; --ok: #8fd19e;
+      --code-bg: #0c0c0b; --code-ink: #ecebe6; color-scheme: dark; }
+  }
+  * { box-sizing: border-box; }
+  html { scroll-behavior: smooth; scroll-padding-top: 24px; }
+  @media (prefers-reduced-motion: reduce) { html { scroll-behavior: auto; } }
+  body { margin: 0; background: var(--paper); color: var(--ink); font: 17px/1.6 var(--sans); -webkit-font-smoothing: antialiased; }
+  ::selection { background: var(--signal); color: var(--sheet); }
+  a { color: var(--signal-ink); text-underline-offset: 3px; text-decoration-thickness: 1px; }
+  a:hover { text-decoration-thickness: 2px; }
+  :focus-visible { outline: 3px solid var(--signal); outline-offset: 3px; border-radius: 4px; }
+  code { font: 0.88em/1.4 var(--mono); background: var(--signal-soft); color: var(--signal-ink); padding: 0.1em 0.35em; border-radius: 4px; }
+
+  .wrap { max-width: 1120px; margin: 0 auto; padding: 0 24px; }
+  header.top { padding: 72px 0 56px; border-bottom: 1px solid var(--rule); }
+  header.top h1 { font: 600 clamp(2.6rem, 6vw, 4.4rem)/1.02 var(--serif); letter-spacing: -0.025em; margin: 0 0 20px; max-width: 14ch; text-wrap: balance; }
+  header.top p.lede { font-size: 1.2rem; color: var(--ink-2); max-width: 58ch; margin: 0; }
+  .facts { display: flex; flex-wrap: wrap; gap: 8px 28px; margin: 28px 0 0; padding: 0; list-style: none; font-size: 0.95rem; color: var(--ink-2); }
+  .facts li { display: flex; gap: 8px; align-items: center; }
+  .facts svg { color: var(--ok); flex: none; }
+  .film { margin: 40px 0 0; max-width: 880px; }
+  .film video { display: block; width: 100%; aspect-ratio: 16 / 9; border-radius: 14px; border: 1px solid var(--rule); background: var(--sheet); }
+  .film figcaption { font-size: 0.9rem; color: var(--ink-2); margin-top: 10px; }
+
+  .layout { display: grid; grid-template-columns: 220px minmax(0, 1fr); gap: 64px; padding: 56px 0 96px; }
+  nav.toc { position: sticky; top: 24px; align-self: start; font-size: 0.92rem; }
+  nav.toc p { font-weight: 600; margin: 0 0 12px; }
+  nav.toc ol { list-style: none; margin: 0; padding: 0 0 0 12px; border-left: 1px solid var(--rule); }
+  nav.toc a { display: block; padding: 6px 0 6px 14px; margin-left: -13px; border-left: 1px solid transparent; color: var(--ink-2); text-decoration: none; }
+  nav.toc a:hover { color: var(--ink); border-left-color: var(--ink-2); }
+  nav.toc a[aria-current="true"] { color: var(--signal-ink); border-left-color: var(--signal); font-weight: 500; }
+
+  .intro { max-width: 66ch; margin: 0 0 40px; color: var(--ink-2); }
+  .steps { list-style: none; margin: 0; padding: 0; counter-reset: step; }
+  .step { position: relative; padding: 0 0 56px 72px; counter-increment: step; }
+  .step::before { content: counter(step); position: absolute; left: 0; top: 2px; width: 44px; height: 44px; border-radius: 50%; display: grid; place-items: center;
+    font: 600 1.15rem/1 var(--serif); color: var(--signal-ink); background: var(--signal-soft); }
+  .step::after { content: ""; position: absolute; left: 21.5px; top: 56px; bottom: 12px; width: 1px; background: var(--rule); }
+  .step:last-child::after { display: none; }
+  .step h2 { font: 600 1.75rem/1.2 var(--serif); letter-spacing: -0.01em; margin: 4px 0 10px; text-wrap: balance; }
+  .step p { max-width: 66ch; margin: 0 0 14px; }
+  .step ul { margin: 0 0 14px; padding-left: 1.2em; max-width: 64ch; }
+  .step li { margin: 4px 0; }
+  .skill { font: 500 0.85rem/1.4 var(--mono); color: var(--ink-2); margin: -4px 0 14px; }
+
+  .say { margin: 18px 0; background: var(--sheet); border: 1px solid var(--rule); border-radius: 12px; overflow: hidden; max-width: 680px; }
+  .say header { display: flex; justify-content: space-between; align-items: center; gap: 12px; padding: 8px 8px 8px 16px; border-bottom: 1px solid var(--rule); font-size: 0.82rem; color: var(--ink-2); }
+  .say pre { margin: 0; padding: 14px 16px; font: 0.95rem/1.55 var(--mono); white-space: pre-wrap; word-break: break-word; }
+  .say.term pre { background: var(--code-bg); color: var(--code-ink); }
+  .copy { font: 500 0.82rem/1 var(--sans); color: var(--ink); background: transparent; border: 1px solid var(--rule); border-radius: 8px; padding: 8px 12px; min-height: 36px; cursor: pointer; }
+  .copy:hover { border-color: var(--ink-2); }
+  .copy[data-done] { color: var(--ok); border-color: var(--ok); }
+
+  .get { font-size: 0.95rem; color: var(--ink-2); }
+  .get strong { color: var(--ink); font-weight: 600; }
+  .split { display: grid; grid-template-columns: 1fr 1fr; gap: 24px; margin: 18px 0; max-width: 760px; }
+  .split section { border-top: 2px solid var(--ink); padding-top: 12px; }
+  .split h3 { font: 600 1.15rem/1.3 var(--serif); margin: 0 0 6px; }
+  .split p { font-size: 0.97rem; }
+  .note { display: flex; gap: 12px; padding: 14px 16px; border-radius: 10px; background: var(--signal-soft); color: var(--ink); max-width: 680px; font-size: 0.95rem; margin: 18px 0 0; }
+  .note svg { flex: none; color: var(--signal-ink); margin-top: 4px; }
+
+  footer.end { border-top: 1px solid var(--rule); padding: 40px 0 64px; color: var(--ink-2); font-size: 0.92rem; }
+  footer.end h2 { font: 600 1.4rem/1.2 var(--serif); color: var(--ink); margin: 0 0 12px; }
+  footer.end ul { padding-left: 1.2em; margin: 0; columns: 2; column-gap: 40px; }
+
+  @media (max-width: 860px) {
+    .layout { grid-template-columns: 1fr; gap: 32px; padding-top: 32px; }
+    nav.toc { position: static; }
+    nav.toc ol { columns: 2; column-gap: 16px; border-left: 0; }
+    nav.toc a { border-left: 0; padding-left: 0; margin-left: 0; }
+    .split { grid-template-columns: 1fr; }
+    footer.end ul { columns: 1; }
+  }
+  @media (max-width: 520px) {
+    .wrap { padding: 0 16px; }
+    header.top { padding: 44px 0 36px; }
+    .step { padding-left: 56px; }
+    .step::before { width: 38px; height: 38px; font-size: 1rem; }
+    .step::after { left: 18.5px; top: 48px; }
+    .step h2 { font-size: 1.45rem; }
+  }
+</style>
+</head>
+<body>
+<header class="top">
+  <div class="wrap">
+    <h1>How to use ProofLoop</h1>
+    <p class="lede">ProofLoop runs user tests from inside Claude Code or Cursor. You plan the study, run moderated or unmoderated sessions, and get findings where every quote and count is checked against what participants actually said and did. This guide walks one study from install to report.</p>
+    <ul class="facts">
+      <li><svg width="16" height="16" viewBox="0 0 16 16" aria-hidden="true"><path d="M3 8.5l3 3 7-7" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>Recordings stay on your laptop or company drive</li>
+      <li><svg width="16" height="16" viewBox="0 0 16 16" aria-hidden="true"><path d="M3 8.5l3 3 7-7" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>Personal details are redacted before the AI reads anything</li>
+      <li><svg width="16" height="16" viewBox="0 0 16 16" aria-hidden="true"><path d="M3 8.5l3 3 7-7" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>You approve every finding before it reaches the report</li>
+    </ul>
+    <figure class="film">
+      <video controls preload="metadata" src="proofloop-guide.mp4" aria-label="ProofLoop in 11 steps, about one minute"></video>
+      <figcaption>The 11 steps in about a minute. The same steps, with every prompt to copy, are below.</figcaption>
+    </figure>
+  </div>
+</header>
+
+<div class="wrap layout">
+  <nav class="toc" aria-label="Steps">
+    <p>Steps</p>
+    <ol>
+      <li><a href="#install">Install</a></li>
+      <li><a href="#setup">Set up</a></li>
+      <li><a href="#context">Add product context</a></li>
+      <li><a href="#plan">Plan the study</a></li>
+      <li><a href="#run">Run sessions</a></li>
+      <li><a href="#import">Import sessions</a></li>
+      <li><a href="#analyse">Analyse</a></li>
+      <li><a href="#synthesise">Synthesise</a></li>
+      <li><a href="#review">Review and report</a></li>
+      <li><a href="#loop">Feed back and re-test</a></li>
+      <li><a href="#cleanup">Clean up</a></li>
+    </ol>
+  </nav>
+
+  <main>
+    <p class="intro">You drive ProofLoop by talking to Claude. Each step shows what to say, which skill runs, and what you get. Your own words work too: the skill is picked from what you ask.</p>
+    <ol class="steps">
+
+      <li class="step" id="install">
+        <h2>Install the plugin</h2>
+        <p>You need Node.js 20 or later, and FFmpeg for recordings. whisper.cpp is optional, for transcribing calls on your laptop.</p>
+        <div class="say term"><header><span>Terminal (macOS)</span><button class="copy" type="button">Copy</button></header><pre>brew install node ffmpeg</pre></div>
+        <p>Then in Claude Code, add the plugin from GitHub:</p>
+        <div class="say"><header><span>Claude Code</span><button class="copy" type="button">Copy</button></header><pre>/plugin marketplace add minhnguyenrenol/proofloop
+/plugin install proofloop@proofloop</pre></div>
+        <p>In Cursor, add the plugin from the GitHub repo <code>minhnguyenrenol/proofloop</code>. It brings the same skills, tools and privacy hooks.</p>
+      </li>
+
+      <li class="step" id="setup">
+        <h2>Set up your research folder</h2>
+        <p class="skill">Skill: research-setup</p>
+        <div class="say"><header><span>Say to Claude</span><button class="copy" type="button">Copy</button></header><pre>Set up ProofLoop for this project.</pre></div>
+        <p>Claude asks a few questions, one at a time:</p>
+        <ul>
+          <li>Where recordings should live: a folder on this laptop, or a company drive folder.</li>
+          <li>Whether this is a company-managed device with disk encryption, and whether the folder is backed up.</li>
+          <li>Whether you'll run unmoderated tests. Those need the short relay: a company bucket that holds uploads for 24 hours.</li>
+        </ul>
+        <p class="get"><strong>You get</strong> a <code>research/</code> folder with a <code>.gitignore</code> that keeps participant data out of git.</p>
+      </li>
+
+      <li class="step" id="context">
+        <h2>Add your product context</h2>
+        <p class="skill">Skill: add-context</p>
+        <div class="say"><header><span>Say to Claude</span><button class="copy" type="button">Copy</button></header><pre>Add product context from the docs in ./product-docs.</pre></div>
+        <p>Point it at your product docs (PDF, Word, slides, Markdown), or answer a short guided form. It writes your vision, problem statement, personas and journeys into one page. Every line names its source, and anything missing says "Not provided" instead of being invented.</p>
+        <p class="get"><strong>You get</strong> <code>context.md</code> and a readable <code>context.html</code> to check and edit.</p>
+      </li>
+
+      <li class="step" id="plan">
+        <h2>Plan the study</h2>
+        <p class="skill">Skill: plan-study</p>
+        <div class="say"><header><span>Say to Claude</span><button class="copy" type="button">Copy</button></header><pre>Plan an unmoderated test of this Figma prototype:
+https://www.figma.com/proto/…
+Goal: find out whether people can open a savings account.</pre></div>
+        <p>Give it a prototype link (Figma, a GitHub-hosted build, or any HTTPS page) and your goal. It drafts research questions, tasks, the consent text and, for moderated tests, a discussion guide. A checker flags leading wording and tasks that give away the answer.</p>
+        <p class="get"><strong>You get</strong> <code>study.yaml</code>, <code>consent.md</code> and <code>guide.md</code>. Read them and ask for changes.</p>
+      </li>
+
+      <li class="step" id="run">
+        <h2>Run the sessions</h2>
+        <p class="skill">Skill: run-session · build-runner</p>
+        <div class="split">
+          <section>
+            <h3>Moderated, on a call</h3>
+            <p>Say "Run a moderated session with P1." Claude records consent, then opens the <strong>Studio</strong> in your browser. It records your Zoom, Meet or Teams window and your mic as separate tracks, with guide sections and notes as you go. Press Stop when the call ends.</p>
+          </section>
+          <section>
+            <h3>Unmoderated, on a link</h3>
+            <p>Say "Build the participant page and links for P1 to P5." Host the page on your company site, then send each person their own link. They consent, try the tasks on the prototype and answer short questions while their screen and voice are recorded.</p>
+          </section>
+        </div>
+        <p class="note"><svg width="16" height="16" viewBox="0 0 16 16" aria-hidden="true"><circle cx="8" cy="8" r="6.5" fill="none" stroke="currentColor" stroke-width="1.5"/><path d="M8 7v4M8 4.8v.2" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg><span>Nothing records without consent. Each participant link works on one device; if someone has to switch, ask Claude to re-create their link with the device released.</span></p>
+      </li>
+
+      <li class="step" id="import">
+        <h2>Bring the sessions in</h2>
+        <p class="skill">Skill: import-sessions</p>
+        <div class="say"><header><span>Say to Claude</span><button class="copy" type="button">Copy</button></header><pre>Import the finished sessions.</pre></div>
+        <p>Unmoderated sessions come down from the relay into your study folder and are deleted from the relay. For calls recorded elsewhere, give Claude the recording and the call tool's transcript. You can also import a results CSV and videos from your current testing tool.</p>
+        <p class="get"><strong>You get</strong> one folder per participant under <code>sessions/</code>, with any problems listed by name.</p>
+      </li>
+
+      <li class="step" id="analyse">
+        <h2>Analyse each session</h2>
+        <p class="skill">Skill: analyse-sessions</p>
+        <div class="say"><header><span>Say to Claude</span><button class="copy" type="button">Copy</button></header><pre>Analyse the sessions.</pre></div>
+        <p>Each transcript is redacted first. Then Claude writes short observations, one idea each. Every quote must match what the participant said word for word, and every behaviour must point to a logged click or a screenshot. Anything that doesn't check out is dropped, not patched up.</p>
+      </li>
+
+      <li class="step" id="synthesise">
+        <h2>Group findings on the board</h2>
+        <p class="skill">Skill: synthesise-study</p>
+        <div class="say"><header><span>Say to Claude</span><button class="copy" type="button">Copy</button></header><pre>Synthesise the study.</pre></div>
+        <p>Claude drafts an affinity map from the bottom up, then opens a drag-and-drop <strong>board</strong> in your browser. Move notes, split, merge and rename groups, and mark the board done. Only then does it write pain points and opportunities, each compared with your product context.</p>
+        <p class="get"><strong>You get</strong> insights with "3 of 5 participants" counts and confidence, all computed in code.</p>
+      </li>
+
+      <li class="step" id="review">
+        <h2>Review and get the report</h2>
+        <p class="skill">Skill: review-findings</p>
+        <div class="say"><header><span>Say to Claude</span><button class="copy" type="button">Copy</button></header><pre>Walk me through the findings.</pre></div>
+        <p>You accept, edit or reject each insight. Only accepted ones reach the report.</p>
+        <p class="get"><strong>You get</strong> <code>report.md</code> and <code>report.html</code>: findings, task success with 90% intervals, SEQ and SUS scores, the affinity map and questions for further research.</p>
+      </li>
+
+      <li class="step" id="loop">
+        <h2>Feed back and re-test</h2>
+        <p class="skill">Skill: update-context · apply-findings · plan-retest</p>
+        <p>Ask Claude to update the product context: it proposes before-and-after changes to personas, journeys and the problem statement, each linked to its evidence. Ask it to apply findings: it proposes prototype changes on a branch for you to review. Then plan a re-test with the same tasks word for word, and compare task success before and after.</p>
+      </li>
+
+      <li class="step" id="cleanup">
+        <h2>Clean up</h2>
+        <p class="skill">Skill: cleanup</p>
+        <div class="say"><header><span>Say to Claude</span><button class="copy" type="button">Copy</button></header><pre>Run retention cleanup for this study.</pre></div>
+        <p>Recordings, screenshots and transcripts are deleted after the study's retention period (90 days by default). To remove one person completely, ask to erase that participant. Claude always shows what will be deleted first.</p>
+      </li>
+    </ol>
+  </main>
+</div>
+
+<footer class="end">
+  <div class="wrap">
+    <h2>More detail</h2>
+    <ul>
+      <li><a href="setup.md">Setup, relay and hosting</a></li>
+      <li><a href="privacy.md">Privacy: data flows and retention</a></li>
+      <li><a href="security.md">Security: threat model</a></li>
+      <li><a href="tools.md">Tool reference</a></li>
+      <li><a href="../examples/savings-demo">A complete example study</a></li>
+      <li><a href="https://github.com/minhnguyenrenol/proofloop">ProofLoop on GitHub</a></li>
+    </ul>
+  </div>
+</footer>
+
+<script>
+  // Copy buttons
+  document.querySelectorAll('.copy').forEach(function (b) {
+    b.addEventListener('click', function () {
+      var text = b.closest('.say').querySelector('pre').textContent;
+      (navigator.clipboard ? navigator.clipboard.writeText(text) : Promise.reject()).then(function () {
+        b.textContent = 'Copied'; b.setAttribute('data-done', '');
+        setTimeout(function () { b.textContent = 'Copy'; b.removeAttribute('data-done'); }, 1600);
+      }, function () { b.textContent = 'Select and copy'; });
+    });
+  });
+  // Highlight the current step in the list
+  var links = Array.prototype.slice.call(document.querySelectorAll('nav.toc a'));
+  if ('IntersectionObserver' in window) {
+    var io = new IntersectionObserver(function (entries) {
+      entries.forEach(function (e) {
+        if (!e.isIntersecting) return;
+        links.forEach(function (a) { a.setAttribute('aria-current', a.getAttribute('href') === '#' + e.target.id ? 'true' : 'false'); });
+      });
+    }, { rootMargin: '-20% 0px -70% 0px' });
+    document.querySelectorAll('.step').forEach(function (s) { io.observe(s); });
+  }
+</script>
+</body>
+</html>
