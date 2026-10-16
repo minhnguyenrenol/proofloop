@@ -1,0 +1,65 @@
+apiVersion: proofloop/v1
+kind: Study
+metadata:
+  name: Open a savings account (demo)
+  slug: savings-demo
+  version: 1
+spec:
+  mode: unmoderated
+  goal: Decide whether the new account summary lets people choose a savings account without calling us.
+  researchQuestions:
+    - Can people find the interest rate they would earn before they start an application?
+    - Do people understand the difference between the base rate and the bonus rate?
+  targetMinutes: 15
+  participants:
+    type: internal
+    target: 6
+  moderators: []
+  prototype:
+    figma: https://www.figma.com/proto/DEMOFILEKEY/Savings-demo
+  recording:
+    screen: true
+    microphone: true
+    camera: false
+  consent:
+    version: "1.0"
+    file: consent/consent.md
+  storage:
+    location: laptop
+    path: ./research
+  retention:
+    mediaDays: 90
+  model:
+    research: claude-opus-5-5
+    economyMode: false
+  blocks:
+    - id: intro
+      type: instructions
+      text: Please think aloud as you go. Say what you're looking at, what you expect to happen, and anything that surprises you.
+    - id: t1
+      type: task
+      scenario: You have $5,000 you won't need for a year and want it to earn some interest.
+      instruction: Find out how much interest you would earn in a year with this account.
+      answers: [0]
+      tests: [ctx-problem-1]
+      success:
+        selfReport: true
+      maxSeconds: 300
+      followUps:
+        - { id: t1_seq, type: seq }
+        - { id: t1_why, type: open_text, text: "What, if anything, was unclear?" }
+    - id: t2
+      type: task
+      scenario: A friend told you that you only get the full rate in some months.
+      instruction: Work out what you would need to do to get the highest rate each month.
+      answers: [1]
+      tests: [ctx-persona-1-goal-1]
+      success:
+        selfReport: true
+      maxSeconds: 300
+      followUps:
+        - { id: t2_seq, type: seq }
+        - { id: t2_why, type: open_text, text: "How would you explain the rate to your friend?" }
+    - id: sus
+      type: question
+      questionType: sus

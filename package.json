@@ -1,0 +1,36 @@
+{
+  "name": "proofloop",
+  "version": "0.1.0",
+  "description": "ProofLoop Research Copilot: moderated and unmoderated user testing, evidence-locked synthesis and findings fed back into prototypes, as a Claude Code and Cursor plugin.",
+  "scripts": {
+    "gen-assets": "node scripts/gen-assets.mjs",
+    "build": "node scripts/gen-assets.mjs && esbuild src/server.mjs --bundle --platform=node --format=esm --target=node20 --outfile=dist/server.mjs --banner:js=\"import { createRequire as __cr } from 'module'; const require = __cr(import.meta.url);\"",
+    "test": "node scripts/gen-assets.mjs && node --test test/*.test.mjs",
+    "test:dist": "npm run build && PROOFLOOP_SERVER=dist/server.mjs node --test test/*.test.mjs",
+    "test:ui": "node scripts/gen-assets.mjs && node --test test/ui/*.test.mjs"
+  },
+  "keywords": [
+    "user-research",
+    "usability-testing",
+    "mcp",
+    "claude-code",
+    "cursor",
+    "plugin"
+  ],
+  "license": "Apache-2.0",
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.32.1",
+    "fflate": "^0.8.2",
+    "yaml": "^2.8.1",
+    "zod": "^3.25.76"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.56.1",
+    "esbuild": "^0.25.10"
+  },
+  "private": true,
+  "type": "module",
+  "engines": {
+    "node": ">=20"
+  }
+}

@@ -1,0 +1,76 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Transform: AWS::Serverless-2016-10-31
+Description: >
+  Proofloop short relay. Participants' recordings wait here until the
+  researcher's plugin imports them into the laptop study folder. Objects
+  are encrypted, private, and deleted by lifecycle rule after 1 day.
+
+Parameters:
+  RelaySecret: { Type: String, NoEcho: true, MinLength: 32, Description: HMAC key for participant links (same value as the plugin's secrets file) }
+  AdminToken: { Type: String, NoEcho: true, MinLength: 32, Description: Bearer token the plugin uses to import and delete }
+  AllowedOrigins: { Type: String, Description: "Comma-separated origins that host the participant page, e.g. https://research.example.com" }
+
+Resources:
+  RelayBucket:
+    Type: AWS::S3::Bucket
+    Properties:
+      BucketEncryption:
+        ServerSideEncryptionConfiguration:
+          - ServerSideEncryptionByDefault: { SSEAlgorithm: aws:kms }
+            BucketKeyEnabled: true
+      PublicAccessBlockConfiguration: { BlockPublicAcls: true, BlockPublicPolicy: true, IgnorePublicAcls: true, RestrictPublicBuckets: true }
+      OwnershipControls: { Rules: [{ ObjectOwnership: BucketOwnerEnforced }] }
+      LifecycleConfiguration:
+        Rules:
+          - { Id: delete-after-1-day, Status: Enabled, ExpirationInDays: 1, AbortIncompleteMultipartUpload: { DaysAfterInitiation: 1 } }
+      CorsConfiguration:
+        CorsRules:
+          - AllowedMethods: [PUT]
+            AllowedOrigins: !Split [',', !Ref AllowedOrigins]
+            AllowedHeaders: [content-type]
+            MaxAge: 600
+
+  RelayBucketPolicy:
+    Type: AWS::S3::BucketPolicy
+    Properties:
+      Bucket: !Ref RelayBucket
+      PolicyDocument:
+        Statement:
+          - Sid: DenyInsecureTransport
+            Effect: Deny
+            Principal: '*'
+            Action: 's3:*'
+            Resource: [!GetAtt RelayBucket.Arn, !Sub '${RelayBucket.Arn}/*']
+            Condition: { Bool: { 'aws:SecureTransport': 'false' } }
+
+  RelayFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      Runtime: nodejs22.x
+      Handler: handler.handler
+      CodeUri: .
+      MemorySize: 256
+      Timeout: 10
+      # Caps how many requests run at once, so a flood can't run up the bill.
+      ReservedConcurrentExecutions: 10
+      Environment:
+        Variables:
+          BUCKET: !Ref RelayBucket
+          RELAY_SECRET: !Ref RelaySecret
+          ADMIN_TOKEN: !Ref AdminToken
+          ALLOWED_ORIGINS: !Ref AllowedOrigins
+      Policies:
+        - Statement:
+            - Effect: Allow
+              Action: [s3:PutObject, s3:GetObject, s3:DeleteObject]
+              Resource: !Sub '${RelayBucket.Arn}/*'
+            - Effect: Allow
+              Action: [s3:ListBucket]
+              Resource: !GetAtt RelayBucket.Arn
+      FunctionUrlConfig:
+        AuthType: NONE
+      LoggingConfig: { LogFormat: JSON, ApplicationLogLevel: WARN }
+
+Outputs:
+  RelayUrl: { Value: !GetAtt RelayFunctionUrl.FunctionUrl, Description: Put this in research-setup as the relay URL }
+  Bucket: { Value: !Ref RelayBucket }

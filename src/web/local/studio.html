@@ -1,0 +1,57 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="referrer" content="no-referrer">
+<title>Proofloop Studio</title>
+<link rel="stylesheet" href="/assets/app.css">
+</head>
+<body>
+<header class="bar">
+  <span class="brand">Studio</span>
+  <span id="title" class="muted"></span>
+  <span class="rec" id="rec" hidden><span class="dot" aria-hidden="true"></span> Recording <span id="clock">00:00:00</span></span>
+</header>
+<main id="main" class="studio">
+  <section class="col" aria-labelledby="setup-h">
+    <h1 id="setup-h">Record the session</h1>
+    <div id="consent" class="note" role="status"></div>
+    <ol class="steps">
+      <li><strong>Start your call</strong> in Zoom, Meet or Teams as usual. Send the participant their prototype link.</li>
+      <li><button id="pick">Choose the call window</button> <span id="pick-state" class="muted" role="status"></span>
+        <p class="muted small">Pick the call app's window or browser tab and tick <em>Share audio</em> (or <em>Share system audio</em>) so the participant's voice is recorded.</p></li>
+      <li><button id="mic">Turn on your microphone</button> <span id="mic-state" class="muted" role="status"></span></li>
+    </ol>
+    <div class="meters">
+      <div><span class="label">Participant (call audio)</span><span class="meter"><span id="lv-sys"></span></span></div>
+      <div><span class="label">You (microphone)</span><span class="meter"><span id="lv-mic"></span></span></div>
+    </div>
+    <div id="warn" class="warn" role="alert" hidden></div>
+    <div id="quiet" class="warn" role="status" hidden></div>
+    <div class="script"><strong>Read this aloud at the start:</strong> <span id="script">"Before we begin: this session is being recorded so the team can review it. The recording stays inside the company and is deleted after a set time. You can ask me to stop at any time."</span></div>
+    <div class="actions"><button class="primary" id="start" disabled aria-describedby="start-hint">Start recording</button><button id="stop" disabled>Stop and save</button></div>
+    <p id="start-hint" class="muted small"></p>
+    <p id="saved" class="ok" role="status"></p>
+  </section>
+  <section class="col" aria-labelledby="guide-h">
+    <h2 id="guide-h">Discussion guide</h2>
+    <p class="muted small">Select a section as you move through it. It becomes a marker on the recording.</p>
+    <ul id="sections" class="sections"></ul>
+    <h2>Notes</h2>
+    <form id="note-form">
+      <label for="note">Type a note and press Enter</label>
+      <input id="note" autocomplete="off" disabled>
+      <fieldset class="tags"><legend class="small muted">Tag (or Alt+1 to Alt+4)</legend>
+        <label><input type="radio" name="kind" value="note" checked> Note</label>
+        <label><input type="radio" name="kind" value="issue"> Issue</label>
+        <label><input type="radio" name="kind" value="quote"> Quote</label>
+        <label><input type="radio" name="kind" value="positive"> Positive</label>
+      </fieldset>
+    </form>
+    <ul id="notes" class="notes" aria-live="polite"></ul>
+  </section>
+</main>
+<script src="/assets/studio.js"></script>
+</body>
+</html>

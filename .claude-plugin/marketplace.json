@@ -1,0 +1,15 @@
+{
+  "name": "proofloop",
+  "owner": {
+    "name": "Minh Nguyen"
+  },
+  "plugins": [
+    {
+      "name": "proofloop",
+      "source": "./",
+      "description": "Research Copilot for moderated and unmoderated prototype testing with evidence-checked synthesis.",
+      "version": "0.1.0"
+    }
+  ],
+  "description": "ProofLoop Research Copilot for moderated and unmoderated prototype testing."
+}

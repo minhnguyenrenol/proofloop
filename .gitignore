@@ -1,0 +1,7 @@
+node_modules/
+research/
+relay-data/
+.aws-sam/
+*.log
+.DS_Store
+test-results/

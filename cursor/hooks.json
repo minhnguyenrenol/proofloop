@@ -1,0 +1,19 @@
+{
+  "version": 1,
+  "hooks": {
+    "preToolUse": [
+      {
+        "command": "node ./hooks/guard.mjs",
+        "matcher": "Shell"
+      },
+      {
+        "command": "node ./hooks/guard.mjs",
+        "matcher": "Read"
+      },
+      {
+        "command": "node ./hooks/guard.mjs",
+        "matcher": "Grep"
+      }
+    ]
+  }
+}

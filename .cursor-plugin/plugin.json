@@ -1,0 +1,22 @@
+{
+  "name": "proofloop",
+  "version": "0.1.0",
+  "description": "Research Copilot: plan, run and synthesise moderated and unmoderated prototype tests with evidence-checked AI, NN/g affinity mapping and before/after product context.",
+  "author": {
+    "name": "Minh Nguyen"
+  },
+  "homepage": "https://github.com/minhnguyenrenol/proofloop",
+  "repository": "https://github.com/minhnguyenrenol/proofloop",
+  "license": "Apache-2.0",
+  "keywords": [
+    "user research",
+    "usability testing",
+    "affinity mapping",
+    "figma"
+  ],
+  "skills": "./skills/",
+  "agents": "./agents/",
+  "rules": "./cursor/rules/",
+  "hooks": "./cursor/hooks.json",
+  "mcpServers": "./mcp.json"
+}

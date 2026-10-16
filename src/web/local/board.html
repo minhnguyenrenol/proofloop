@@ -1,0 +1,38 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="referrer" content="no-referrer">
+<title>Affinity board</title>
+<link rel="stylesheet" href="/assets/app.css">
+</head>
+<body>
+<header class="bar">
+  <span class="brand">Affinity board</span>
+  <span id="title" class="muted"></span>
+  <span id="state" class="pill"></span>
+  <button id="new-group">New group</button>
+  <button id="new-theme">New theme</button>
+  <button id="done" class="primary">Mark board done</button>
+</header>
+<p class="help">Drag notes between groups, or tab to a note and press <kbd>M</kbd> (or select Move…) to move it. Name each group with a sentence in participants' words. Note colours show which participant said it, so you can see how widely a pattern is shared.</p>
+<span id="note-hint" class="vh">Press M to move this note.</span>
+<div id="msg" role="status" aria-live="polite" class="status"></div>
+<main id="board" class="board" aria-label="Affinity board"></main>
+<dialog id="move-dlg" aria-labelledby="move-h">
+  <form method="dialog">
+    <h2 id="move-h">Move note to…</h2>
+    <select id="move-to" aria-label="Destination group"></select>
+    <div class="actions"><button value="cancel">Cancel</button><button value="ok" class="primary">Move</button></div>
+  </form>
+</dialog>
+<dialog id="confirm-dlg" aria-labelledby="confirm-text">
+  <form method="dialog">
+    <p id="confirm-text"></p>
+    <div class="actions"><button value="cancel">Cancel</button><button value="ok" class="primary" id="confirm-ok">OK</button></div>
+  </form>
+</dialog>
+<script src="/assets/board.js"></script>
+</body>
+</html>
