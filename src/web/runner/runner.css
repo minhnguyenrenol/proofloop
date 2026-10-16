@@ -33,6 +33,8 @@ label.check input { width: 22px; height: 22px; margin-top: 2px; }
 .scale label { display: flex; flex-direction: column; align-items: center; gap: 4px; min-width: 44px; }
 .scale-ends { display: flex; justify-content: space-between; color: var(--muted); font-size: 14px; max-width: 420px; }
 textarea { width: 100%; min-height: 96px; font: inherit; padding: 8px; border-radius: 8px; border: 1px solid var(--field); background: var(--bg); color: var(--text); }
+.name-field { margin-top: 16px; }
+.name-field input { width: 100%; max-width: 360px; margin-top: 4px; font: inherit; padding: 8px; border-radius: 8px; border: 1px solid var(--field); background: var(--bg); color: var(--text); }
 .check-row { display: flex; gap: 10px; align-items: center; margin: 8px 0; }
 .check-row .state { font-weight: 600; } .ok { color: var(--ok); } .bad { color: var(--danger); }
 .task-layout { display: grid; grid-template-columns: 320px 1fr; width: 100%; min-height: 0; }

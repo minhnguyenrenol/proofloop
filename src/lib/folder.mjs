@@ -55,7 +55,8 @@ export function readJson(f, fallback) {
   }
   const text = fs.readFileSync(f, 'utf8');
   // Name the file, so a damaged one can be found and fixed.
-  try { return JSON.parse(text); } catch (e) { throw new Error(`${f} is damaged (not valid JSON: ${e.message}). Restore it from a backup (or its .bak copy, if there is one), or remove it and redo that step.`); }
+  // The parser's own message can quote the file's text, so it isn't passed on.
+  try { return JSON.parse(text); } catch { throw new Error(`${f} is damaged (not valid JSON). Restore it from a backup (or its .bak copy, if there is one), or remove it and redo that step.`); }
 }
 
 export function writeJson(f, data) {
@@ -83,7 +84,7 @@ export function listSessions(root, slug) {
 export function hasConsent(root, slug, participant) {
   const f = path.join(studyDir(root, slug), 'consent', `${participant}.json`);
   if (!fs.existsSync(f)) return false;
-  const c = JSON.parse(fs.readFileSync(f, 'utf8'));
+  const c = readJson(f); // a damaged record is an error naming the file, never a quoted name
   return c.agreed === true && !c.withdrawn_at;
 }
 

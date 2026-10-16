@@ -210,7 +210,16 @@ function check(input) {
     const safeGlob = /^(\*\*\/)?(observations|analysis-input|transcript\.redacted)\.json$/i.test(g);
     const fd = file ? norm(file, cwd) : null;
     if (/grep|search/i.test(tool) && fd && PROTECTED_DIR.test(fd) && (insideResearch(fd) || !fs.existsSync(fd)) && !safeGlob) block('search inside sessions/ or consent/ only with glob set to observations.json, analysis-input.json or transcript.redacted.json.');
-    // A search glob overrides ignore files, so check what it would really match.
+    // A search glob overrides ignore files, so check what it would really match,
+    // and refuse one aimed at a raw file by name even where nothing exists yet.
+    const RAW = ['transcript.json', 'answers.json', 'device.json', 'notes.md', 'markers.json'];
+    const lastSeg = g.split('/').pop();
+    // Only where research data is, or may be: in an ordinary project, notes.md is just a file.
+    const base = fd ?? norm('.', cwd);
+    const namesRaw = RAW.some((n) => lastSeg.toLowerCase().includes(n.split('.')[0]) && matchSeg(compileSeg(lastSeg), n)) && (!fs.existsSync(base) || insideResearch(base) || researchBelow(base));
+    if (/grep|search/i.test(tool) && g && !safeGlob && namesRaw) {
+      block('searching raw research files by name is not allowed. Use glob analysis-input.json, observations.json or transcript.redacted.json.');
+    }
     if (/grep|search/i.test(tool) && g && !safeGlob) {
       const m = globWhy(norm(g.includes('/') ? g : `**/${g}`, file ? norm(file, cwd) : cwd));
       if (m) block(m);

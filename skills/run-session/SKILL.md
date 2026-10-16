@@ -10,7 +10,7 @@ description: Run a moderated session with the Studio - record consent, open the 
 1. Check the study is moderated and valid (`study_validate`), and `guide.md` has `##` sections.
 2. Pick the participant id (next free `P<n>`).
 3. Consent. Ask how consent was given: a signed form (`written`), an online form (`form`), or spoken at the start of the recorded call (`verbal-recorded`). Call `consent_record` only after the user confirms it was given. Ask for the participant's name only so it can be removed from transcripts; it is never sent to the model. Without consent the Studio will not record.
-4. Click capture (optional, recommended): if the study has a relay and a hosted runner, create a link with `runner_links` for this participant (it is saved to a private file; tell the user where). The page shows the prototype and records clicks only, no screen, camera or voice. Otherwise the participant uses the prototype link directly and only the call recording is analysed.
+4. Click capture (optional, recommended): if the study has a relay and a hosted runner, create a link with `runner_links` for this participant (it is saved to a private file; tell the user where). The page shows the prototype and records clicks only, no screen, camera or voice. Otherwise the participant uses the prototype link directly and only the call recording is analysed. Tell the moderator to open that link only on the participant's device: the link works on the first device that presses "I'm ready". If the participant has to switch device, run `runner_links` again for them with `release_device: true`.
 
 ## During the call
 

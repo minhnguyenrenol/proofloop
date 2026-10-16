@@ -12,6 +12,8 @@ description: Bring sessions into the study folder - pull finished unmoderated se
 
 Other skills run `relay_import` first by themselves while a study with a relay is live, so sessions are not lost to the time limit. Run it here when the user asks, or daily while a test is live.
 
+If a participant is finishing right now (the user says someone is mid-test), pass `watch_minutes` (up to 10) to keep checking until their session arrives. If the tool call times out in your editor, use a shorter wait. Sessions that failed to import are listed in `failed` with the reason and stay on the relay; tell the user. Consent records from the participant page keep the participant's name only if they ticked "keep my name"; otherwise the record has a made-up `pseudonym` and no name.
+
 ## From a call tool (moderated)
 
 1. Ask for the recording file and the transcript file the call tool produced (Zoom: `.vtt` from cloud recording; Teams: `.vtt` or `.docx`; Meet: the transcript document saved as `.docx` or `.txt`).

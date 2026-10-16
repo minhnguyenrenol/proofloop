@@ -30,9 +30,9 @@
 
   // ---------- helpers ----------
   const esc = (s) => String(s == null ? '' : s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
-  const say = (msg) => { statusEl.textContent = linkDead && msg !== LINK_DEAD ? LINK_DEAD : msg; };
+  const say = (msg) => { statusEl.textContent = linkDead && msg !== deadMsg ? deadMsg : msg; };
   function render(html, focusSel) {
-    say(linkDead ? LINK_DEAD : ''); // a refused link stays on screen
+    say(linkDead ? deadMsg : ''); // a refused link stays on screen
     main.innerHTML = html;
     const f = focusSel ? main.querySelector(focusSel) : main.querySelector('h1');
     if (f) { f.setAttribute('tabindex', '-1'); f.focus(); }
@@ -80,8 +80,19 @@
   let pumping = false;
   let backoff = 1000;
   // The relay refused the link itself (expired or not valid): retrying can't help.
-  const LINK_DEAD = 'This link has expired or is no longer valid, so your session can\'t be sent. What you did is saved on this device. Please contact the researcher who sent you the link.';
+  let deadMsg = 'This link has expired or is no longer valid, so your session can\'t be sent. What you did is saved on this device. Please contact the researcher who sent you the link.';
+  const IN_USE = 'This link is already being used on another device, and it only works on one. Please carry on there, or contact the researcher who sent you the link.';
   let linkDead = false;
+  // One device per link (FR-PLG-008): a random id kept on this device, so a reload carries on.
+  // If the browser blocks storage there is no id, and the link isn't bound.
+  // Kept per link (not across studies) and removed when the session is sent.
+  const deviceKey = 'proofloop-device-' + token.slice(-16);
+  let deviceId = null;
+  try {
+    deviceId = localStorage.getItem(deviceKey);
+    if (!/^[A-Za-z0-9-]{8,64}$/.test(deviceId || '')) { deviceId = (window.crypto && crypto.randomUUID ? crypto.randomUUID() : Date.now() + '-' + String(Math.random()).slice(2, 12)).replace(/[^A-Za-z0-9-]/g, '').slice(0, 64); localStorage.setItem(deviceKey, deviceId); }
+  } catch (e) { deviceId = null; }
+  const claimLink = () => { if (deviceId) enqueue('claim-' + deviceId + '.json', new Blob(['{}'], { type: 'application/json' })); };
   async function pump() {
     if (pumping || !S.relay || linkDead) return;
     pumping = true;
@@ -90,10 +101,11 @@
         const item = await nextPending();
         if (!item) break;
         try {
-          const r = await fetch(S.relay + '/upload-url', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ token: token, name: item.name, size: item.blob.size }) });
+          const r = await fetch(S.relay + '/upload-url', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ token: token, name: item.name, size: item.blob.size, device: deviceId || undefined }) });
           // 409: already received (or the session is finished). 400: this piece can never be accepted.
           if (r.status === 409 || r.status === 400) { await removePending(item.name); continue; }
-          if (r.status === 401 || r.status === 403) { linkDead = true; say(LINK_DEAD); break; }
+          if (r.status === 423) { deadMsg = IN_USE; linkDead = true; say(deadMsg); break; }
+          if (r.status === 401 || r.status === 403) { linkDead = true; say(deadMsg); break; }
           if (!r.ok) throw new Error('relay ' + r.status);
           const { url } = await r.json();
           const put = await fetch(url, { method: 'PUT', body: item.blob, headers: { 'content-type': item.blob.type || 'application/octet-stream' } });
@@ -209,10 +221,12 @@
     render('<section class="panel"><h1>' + esc(S.name) + '</h1><p>Your researcher will guide you on the call. Keep this page open and use the design here when they ask you to.</p>' +
       '<p class="muted">This page notes where you click on the design. It does not record your screen, camera or voice; the call recording is covered by the consent you gave.</p>' +
       '<div class="actions"><button class="primary" id="go">I\'m ready</button></div></section>');
-    document.getElementById('go').onclick = () => { logEvent('session_start', { mode: 'moderated' }); next(); };
+    document.getElementById('go').onclick = () => { claimLink(); logEvent('session_start', { mode: 'moderated' }); next(); };
   }
   function consent() {
     render('<section class="panel"><h1>Before you start</h1><h2 id="consent-h">What you\'re agreeing to</h2><div class="consent" role="region" tabindex="0" aria-labelledby="consent-h">' + S.consentHtml + '</div>' +
+      '<p class="name-field"><label for="pname">Your name (optional)</label><br><input id="pname" type="text" autocomplete="name" maxlength="100"></p>' +
+      '<label class="check"><input type="checkbox" id="keep-name"> <span>You may keep my name with my session. It is used only to find and remove my name from what I say before anything is analysed. If this is not ticked, my name isn\'t sent, a made-up name is recorded instead, and my name can\'t be removed if I say it aloud.</span></label>' +
       '<label class="check"><input type="checkbox" id="agree"> <span>I\'ve read the information above. I agree to take part and to have my voice and this tab recorded.</span></label>' +
       '<p class="muted" id="agree-hint">Tick the box to continue.</p>' +
       '<div class="actions"><button class="primary" id="go" disabled aria-describedby="agree-hint">Continue</button><button id="no">I don\'t want to take part</button></div></section>');
@@ -220,8 +234,13 @@
     const go = document.getElementById('go');
     agree.onchange = () => { go.disabled = !agree.checked; };
     go.onclick = () => {
-      state.consent = { agreed: true, version: S.consentVersion, at: new Date().toISOString(), mode: 'self' };
+      // The name leaves this device only if the participant ticked "keep my name".
+      const name = document.getElementById('pname').value.trim().slice(0, 100);
+      const kept = !!name && document.getElementById('keep-name').checked;
+      state.consent = Object.assign({ agreed: true, version: S.consentVersion, at: new Date().toISOString(), mode: 'self', name_kept: kept }, kept ? { name: name } : {});
+      claimLink();
       enqueue('meta.json', new Blob([JSON.stringify({ consent: state.consent, userAgent: navigator.userAgent, screen: [screen.width, screen.height], session_start: sessionStart })], { type: 'application/json' }));
+      delete state.consent.name; // sent once; not kept in the page's saved progress
       next();
     };
     document.getElementById('no').onclick = () => render('<section class="panel"><h1>No problem</h1><p>Nothing has been recorded. You can close this page.</p></section>');
@@ -387,16 +406,16 @@
     render('<section class="panel"><h1>Thank you</h1><p id="up" role="status">Sending your session. Please keep this page open.</p></section>');
     progressEl.textContent = '';
     const poll = async () => {
-      if (linkDead) { document.getElementById('up').textContent = LINK_DEAD; return; }
+      if (linkDead) { document.getElementById('up').textContent = deadMsg; return; }
       const left = await countPending();
       if (left > 0) { document.getElementById('up').textContent = 'Sending your session (' + left + ' parts left). Please keep this page open.'; await pump(); return setTimeout(poll, 1500); }
       enqueue('done.json', new Blob([JSON.stringify({ finished_at: new Date().toISOString() })], { type: 'application/json' }));
       await pump();
       // Only say it's sent once it really is; keep the saved state otherwise.
-      if (linkDead) { document.getElementById('up').textContent = LINK_DEAD; return; }
+      if (linkDead) { document.getElementById('up').textContent = deadMsg; return; }
       if (await countPending()) return setTimeout(poll, 1500);
       document.getElementById('up').textContent = 'All done. Your session has been sent. You can close this page.';
-      try { localStorage.removeItem(storeKey); } catch (e) { /* ignore */ }
+      try { localStorage.removeItem(storeKey); localStorage.removeItem(deviceKey); } catch (e) { /* ignore */ }
     };
     poll();
   }
@@ -412,15 +431,15 @@
     flushEvents(true);
     enqueue('answers.json', new Blob([JSON.stringify({ answers: state.answers, tasks: state.tasks, device: state.device, interrupted: true })], { type: 'application/json' }));
     const poll = async () => {
-      if (linkDead) { document.getElementById('up').textContent = LINK_DEAD; return; }
+      if (linkDead) { document.getElementById('up').textContent = deadMsg; return; }
       const left = await countPending();
       if (left > 0) { await pump(); return setTimeout(poll, 1500); }
       enqueue('done.json', new Blob([JSON.stringify({ finished_at: new Date().toISOString(), interrupted: true })], { type: 'application/json' }));
       await pump();
-      if (linkDead) { document.getElementById('up').textContent = LINK_DEAD; return; }
+      if (linkDead) { document.getElementById('up').textContent = deadMsg; return; }
       if (await countPending()) return setTimeout(poll, 1500);
       document.getElementById('up').textContent = 'Sent. You can close this page. If you\'d like to try again, please contact the researcher who sent you the link.';
-      try { localStorage.removeItem(storeKey); } catch (e) { /* ignore */ }
+      try { localStorage.removeItem(storeKey); localStorage.removeItem(deviceKey); } catch (e) { /* ignore */ }
     };
     poll();
   }

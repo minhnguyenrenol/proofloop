@@ -19,7 +19,8 @@
 import crypto from 'node:crypto';
 import { signRequest } from './sigv4.mjs';
 
-const NAME_RE = /^(chunk-screen-\d{6}\.webm|chunk-mic-\d{6}\.webm|events-\d{4}\.json|answers\.json|meta\.json|done\.json)$/;
+const NAME_RE = /^(chunk-screen-\d{6}\.webm|chunk-mic-\d{6}\.webm|events-\d{4}\.json|answers\.json|meta\.json|done\.json|claim-[A-Za-z0-9-]{8,64}\.json)$/;
+const DEVICE_RE = /^[A-Za-z0-9-]{8,64}$/;
 const MAX_BYTES = 25 * 1024 * 1024; // per piece
 const MAX_PIECES = 4000; // per track
 
@@ -83,6 +84,18 @@ export function createRelay({ store, secret, adminToken, allowedOrigins = [], re
       const { study, p } = t.claims;
       if (!NAME_RE.test(input.name ?? '')) return json(400, { error: 'name not allowed' }, origin);
       if (!(input.size > 0 && input.size <= MAX_BYTES)) return json(400, { error: 'size missing or too large' }, origin);
+      // FR-PLG-008: a link works on one device. The page's first upload is
+      // claim-<device>.json; after that, other devices are refused (423), while
+      // the same device can carry on after a reload. Pages without a device id
+      // (built by older versions, or storage blocked) work only while nobody has claimed the link.
+      const device = input.device;
+      if (device !== undefined && !DEVICE_RE.test(String(device))) return json(400, { error: 'bad device id' }, origin);
+      if (/^claim-/.test(input.name) && input.name !== `claim-${device}.json`) return json(400, { error: 'claim must match the device' }, origin);
+      // Common case is one HEAD: this device's own claim. Only otherwise look for someone else's.
+      if (!(device && await store.exists(`${study}/${p}/claim-${device}.json`))) {
+        const claimed = (await store.list(`${study}/${p}/`)).some((o) => /\/claim-[^/]+\.json$/.test(o.key));
+        if (claimed) return json(423, { error: 'link in use on another device' }, origin);
+      }
       // 4000 five-second pieces is over 5 hours per track; more is abuse, not a session.
       const seq = input.name.match(/^chunk-(?:screen|mic)-(\d{6})\.webm$/);
       if (seq && Number(seq[1]) >= MAX_PIECES) return json(400, { error: 'too many pieces' }, origin);

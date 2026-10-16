@@ -18,7 +18,7 @@ import { validateContext, parseContext, contextTemplate, validateChanges, applyC
 import { verifyObservations, verifyInsights } from './lib/verify.mjs';
 import { notesFromObservations, createBoard, boardSummary, groupStats } from './lib/board.mjs';
 import { buildRunner, makeLinks } from './lib/runner.mjs';
-import { importFromRelay, newSecret } from './lib/relay-client.mjs';
+import { importFromRelay, newSecret, releaseClaims } from './lib/relay-client.mjs';
 import { importModerated, transcribeSession, prepareSession } from './lib/session.mjs';
 import { renderReport } from './lib/report.mjs';
 import { compareStudies } from './lib/compare.mjs';
@@ -30,15 +30,36 @@ import { mdToHtml, esc } from './lib/markdown.mjs';
 import { REDACTION_VERSION } from './lib/redact.mjs';
 import { TEMPLATES } from './lib/templates.mjs';
 
-const VERSION = '0.2.4';
+const VERSION = '0.3.0';
 const server = new McpServer({ name: 'proofloop', version: VERSION });
 
 // ---------- helpers ----------
 const ok = (data) => ({ content: [{ type: 'text', text: typeof data === 'string' ? data : JSON.stringify(data, null, 2) }] });
-const fail = (msg) => ({ isError: true, content: [{ type: 'text', text: msg }] });
+// Errors follow spec Appendix I: { ok: false, error: { code, message, hint } }.
+// Codes come from the message, so library code can keep throwing plain errors;
+// messages are unchanged. Anything unrecognised is FAILED.
+const CODES = [
+  [/No research folder/, 'NO_RESEARCH_FOLDER', 'Run the research-setup skill (setup_init) first.'],
+  [/No consent record/, 'CONSENT_REQUIRED', 'Record consent first: consent_record for moderated sessions; unmoderated consent comes from the participant page.'],
+  [/is damaged \(not valid JSON/, 'FILE_DAMAGED', 'Restore the file, or redo the step that writes it.'],
+  [/hasn't been prepared yet/, 'NOT_PREPARED', 'Run session_prepare for this participant.'],
+  [/^Missing file:/, 'MISSING_FILE', 'An earlier step hasn\'t run yet for this study or session.'],
+  [/not marked the board done|board is not marked done/, 'BOARD_NOT_DONE', 'Ask the researcher to finish the board (board_open) and mark it done.'],
+  [/^Study ".*" not found/, 'STUDY_NOT_FOUND', 'Check the study name, or create it with study_create.'],
+  [/^Fix blocking study issues|^study\.yaml has errors/, 'LINT_BLOCKING', 'Run study_validate and fix the listed issues.'],
+  [/relay secrets|relay URL is not pinned|spec\.relay\.url/, 'RELAY_NOT_SET_UP', 'Deploy the relay and run setup_init with relay_url.'],
+  [/^relay [A-Z]+ \/\S+: (401|403)/, 'RELAY_UNAUTHORISED', 'The relay refused the admin token. Check the relay was deployed with the token from this research folder\'s secrets file.'],
+  [/^relay [A-Z]+ \/|fetch failed|aborted due to timeout/, 'RELAY_UNREACHABLE', 'The relay didn\'t answer properly. Check it is running and reachable, then try again.'],
+  [/already running/, 'BUSY', 'Wait for the other import to finish.'],
+  [/Every insight was rejected/, 'CITATION_UNVERIFIED', 'Fix each insight against the board and resubmit.'],
+];
+const fail = (e) => {
+  const [, code, hint] = CODES.find(([re]) => re.test(e.message)) ?? [null, 'FAILED', null];
+  return { isError: true, content: [{ type: 'text', text: JSON.stringify({ ok: false, error: { code, message: e.message, hint } }) }] };
+};
 function tool(name, description, schema, fn) {
-  server.registerTool(name, { description, inputSchema: schema }, async (args) => {
-    try { return ok(await fn(args)); } catch (e) { return fail(e.message); }
+  server.registerTool(name, { description, inputSchema: schema }, async (args, extra) => {
+    try { return ok(await fn(args, extra)); } catch (e) { return fail(e); }
   });
 }
 function root(folder) {
@@ -94,6 +115,9 @@ const slugArg = z.string().regex(/^[a-z0-9-]+$/).describe('Study folder name, e.
 const pArg = z.string().regex(/^P\d{1,3}$/).describe('Participant id, e.g. P1');
 const folderArg = z.string().optional().describe('Research folder path; defaults to ./research found from the working directory');
 
+// FR-PLG-011: recordings live only in this folder, so a laptop folder needs a backup.
+const backupNote = (cfg) => (cfg?.location === 'laptop' && !cfg.backup ? 'not confirmed: recordings live only in this laptop folder, so losing the laptop loses them. Ask the user whether it is backed up (Time Machine or a company backup) and run setup_init with backup_confirmed.' : null);
+
 // After an upgrade: analysis inputs prepared with older redaction, and
 // research files git already tracks (adding ignore lines doesn't untrack them).
 function upgradeChecks(r) {
@@ -125,6 +149,7 @@ tool('setup_check', 'Check prerequisites for the Research Copilot: FFmpeg, local
     research_folder: r ?? 'not set up',
     config: cfg,
     relay_secrets: r && fs.existsSync(secretsPath(r)) ? 'present (stored outside the project folder)' : 'none',
+    backup: backupNote(cfg) ?? (cfg?.backup ? `confirmed by ${cfg.backup.confirmed_by} on ${cfg.backup.at.slice(0, 10)}` : cfg ? 'not needed (company drive folder)' : 'not set up'),
   };
   if (r) {
     const gi = path.join(r, '.gitignore');
@@ -145,11 +170,13 @@ tool('setup_init', 'Create and configure the research folder. Recordings stay in
   whisper_model: z.string().optional().describe('Path to a whisper.cpp model file, e.g. ~/models/ggml-large-v3-turbo.bin'),
   user_name: z.string().describe('Name of the researcher, recorded in logs and decisions'),
   model_account: z.enum(['claude-enterprise', 'claude-team', 'api-bedrock', 'api-vertex', 'api-anthropic', 'cursor']).optional().describe('The organisation\'s approved model account in use: Claude Enterprise or Team plan, Claude API via Bedrock, Vertex or Anthropic, or Cursor with an approved Claude model'),
+  backup_confirmed: z.boolean().optional().describe('The user confirmed this laptop folder is backed up (e.g. Time Machine or a company backup). Recordings live only here, so without a backup a lost laptop loses them. Not needed for a company drive folder.'),
 }, (a) => {
   const r = path.resolve(a.path);
   fs.mkdirSync(path.join(r, '.proofloop'), { recursive: true });
   const prev = fs.existsSync(path.join(r, '.proofloop', 'config.json')) ? loadConfig(r) : {};
-  const cfg = { ...prev, version: 1, location: a.location, product_name: a.product_name ?? prev.product_name ?? null, relay_url: a.relay_url ?? prev.relay_url ?? null, runner_base_url: a.runner_base_url ?? prev.runner_base_url ?? null, whisper_model: a.whisper_model ? a.whisper_model.replace(/^~/, os.homedir()) : prev.whisper_model ?? null, model_account: a.model_account ?? prev.model_account ?? null, managed_device_confirmed_by: a.user_name, managed_device_confirmed_at: new Date().toISOString(), created_by: prev.created_by ?? a.user_name };
+  const backup = a.backup_confirmed === undefined ? prev.backup ?? null : a.backup_confirmed ? { confirmed_by: a.user_name, at: new Date().toISOString() } : null;
+  const cfg = { ...prev, version: 1, location: a.location, backup, product_name: a.product_name ?? prev.product_name ?? null, relay_url: a.relay_url ?? prev.relay_url ?? null, runner_base_url: a.runner_base_url ?? prev.runner_base_url ?? null, whisper_model: a.whisper_model ? a.whisper_model.replace(/^~/, os.homedir()) : prev.whisper_model ?? null, model_account: a.model_account ?? prev.model_account ?? null, managed_device_confirmed_by: a.user_name, managed_device_confirmed_at: new Date().toISOString(), created_by: prev.created_by ?? a.user_name };
   saveConfig(r, cfg);
   // Existing ignore files keep the user's own lines; missing Proofloop lines are appended.
   for (const [f, want] of [['.gitignore', GITIGNORE], ['.ignore', SEARCH_IGNORE]]) {
@@ -202,12 +229,15 @@ tool('study_create', 'Create a study folder from templates: study.yaml, guide.md
     ctxNote = `copied from ${from_study} (${versions.at(-1) ?? 'original'})`;
   } else writeText(path.join(d, 'context', 'context.md'), contextTemplate(cfg.product_name ?? name));
   appendLog(r, slug, { skill: 'plan-study', event: 'study_created', mode, context: ctxNote });
-  return { folder: d, files: ['study.yaml', 'consent/consent.md', ...(mode === 'moderated' ? ['guide.md'] : []), 'context/context.md'], context: ctxNote };
+  const warnings = backupNote(cfg) ? [`This research folder is not confirmed as backed up: ${backupNote(cfg)}`] : [];
+  return { folder: d, files: ['study.yaml', 'consent/consent.md', ...(mode === 'moderated' ? ['guide.md'] : []), 'context/context.md'], context: ctxNote, warnings };
 });
 
 tool('study_validate', 'Validate study.yaml (strict schema with line numbers) and run the research-quality linter: leading wording, UI giveaways in tasks, missing success criteria, research questions without tasks, timing, sample size, consent and privacy.', { folder: folderArg, slug: slugArg }, ({ folder, slug }) => {
   const r = root(folder);
-  const text = fs.readFileSync(path.join(studyDir(r, slug), 'study.yaml'), 'utf8');
+  const sf = path.join(studyDir(r, slug), 'study.yaml');
+  if (!fs.existsSync(sf)) throw new Error(`Study "${slug}" not found at ${sf}`);
+  const text = fs.readFileSync(sf, 'utf8');
   const res = parseStudy(text);
   if (res.errors) return { valid: false, errors: res.errors };
   const ctxF = path.join(studyDir(r, slug), 'context', 'context.md');
@@ -263,9 +293,10 @@ tool('runner_build', 'Generate the participant page for an unmoderated (or moder
   return { folder: path.join(studyDir(r, slug), 'runner'), files: res.files.map((f) => path.basename(f)), published_fields: Object.keys(res.public), note: 'Only public study fields are in study.js. Moderator names, research questions and storage paths are not published.' };
 });
 
-tool('runner_links', 'Create signed, expiring participant links (one per participant id). Share each link only with that participant.', {
+tool('runner_links', 'Create signed, expiring participant links (one per participant id). Share each link only with that participant. A link works on the first device that opens it; if a participant has to switch device, create their link again with release_device: true.', {
   folder: folderArg, slug: slugArg, participants: z.array(pArg).min(1), base_url: z.string().url().optional(), days: z.number().int().min(1).max(14).default(7),
-}, ({ folder, slug, participants, base_url, days }) => {
+  release_device: z.boolean().default(false).describe('Let these participants\' links work on a new device (removes the earlier device\'s claim on the relay)'),
+}, async ({ folder, slug, participants, base_url, days, release_device }) => {
   const r = root(folder);
   const cfg = loadConfig(r);
   const study = loadStudy(r, slug);
@@ -277,18 +308,53 @@ tool('runner_links', 'Create signed, expiring participant links (one per partici
   const file = path.join(path.dirname(secretsPath(r)), `links-${slug}.csv`);
   const prev = fs.existsSync(file) ? fs.readFileSync(file, 'utf8').trim().split('\n').slice(1).filter((l) => !participants.includes(l.split(',')[0])) : [];
   fs.writeFileSync(file, ['participant,expires,url', ...prev, ...links.map((l) => `${l.participant},${l.expires ?? ''},${l.url}`)].join('\n') + '\n', { mode: 0o600 });
-  return { links_file: file, participants, days, note: 'Open the file yourself and send each link only to its participant. Links are not shown here because they work as upload passwords.' };
+  const released = release_device ? await releaseClaims({ relayUrl: pinnedRelay(r), adminToken: readSecrets(r).admin_token, slug, participants }) : undefined;
+  return { links_file: file, participants, days, ...(released ? { released_from_device: released } : {}), note: 'Open the file yourself and send each link only to its participant. Links are not shown here because they work as upload passwords.' };
 });
 
-tool('relay_import', 'Import finished unmoderated sessions (and moderated-mode click data) from the short relay into the laptop study folder, verify them, and delete them from the relay.', {
+tool('relay_import', 'Import finished unmoderated sessions (and moderated-mode click data) from the short relay into the laptop study folder, verify them, and delete them from the relay. With watch_minutes, keeps checking until a session arrives or the time is up (for a participant who is finishing right now).', {
   folder: folderArg, slug: slugArg, include_incomplete: z.boolean().default(false),
-}, async ({ folder, slug, include_incomplete }) => {
+  watch_minutes: z.number().min(0).max(10).default(0).describe('Keep checking for up to this many minutes until at least one session is imported (0 = check once)'),
+  poll_seconds: z.number().int().min(1).max(300).default(60).describe('How often to check while watching'),
+}, async ({ folder, slug, include_incomplete, watch_minutes, poll_seconds }, extra) => {
   const r = root(folder);
-  const cfg = loadConfig(r);
-  const study = loadStudy(r, slug);
-  void cfg; void study;
-  return importFromRelay({ root: r, slug, relayUrl: pinnedRelay(r), adminToken: readSecrets(r).admin_token, includeIncomplete: include_incomplete });
+  loadStudy(r, slug);
+  // Two imports of one study at once would share the staging folder.
+  const key = `${r}:${slug}`;
+  if (importing.has(key)) throw new Error('An import for this study is already running. Wait for it to finish, then try again.');
+  importing.add(key);
+  try {
+    const run = () => importFromRelay({ root: r, slug, relayUrl: pinnedRelay(r), adminToken: readSecrets(r).admin_token, includeIncomplete: include_incomplete });
+    const started = Date.now();
+    const until = started + watch_minutes * 60000;
+    const signal = extra?.signal;
+    const token = extra?._meta?.progressToken;
+    let step = 0;
+    const progress = () => (token === undefined ? null : extra.sendNotification({ method: 'notifications/progress', params: { progressToken: token, progress: ++step, message: 'Waiting for sessions to finish uploading' } }).catch(() => {}));
+    let report = await run();
+    // Facts reported once (lost sessions, deletions, warnings) are kept across polls.
+    const total = { ...report, warnings: [...report.warnings], lost: [...report.lost] };
+    // FR-PLG-009 watch: poll inside the call, so it works the same in Claude Code and
+    // Cursor. Stops on success, on a failure, when the client cancels, or at the limit.
+    while (!report.imported.length && !report.failed.length && !signal?.aborted && Date.now() + poll_seconds * 1000 <= until) {
+      // Sleep in short slices with progress, so clients that reset their timeout on progress keep waiting.
+      for (let left = poll_seconds * 1000; left > 0 && !signal?.aborted; left -= 15000) {
+        await progress();
+        await new Promise((res) => { const t = setTimeout(res, Math.min(left, 15000)); signal?.addEventListener('abort', () => { clearTimeout(t); res(); }, { once: true }); });
+      }
+      if (signal?.aborted) break;
+      report = await run();
+      for (const w of report.warnings) if (!total.warnings.includes(w)) total.warnings.push(w);
+      total.lost.push(...report.lost);
+      total.deleted += report.deleted;
+      Object.assign(total, { imported: report.imported, skipped: report.skipped, failed: report.failed });
+    }
+    return { ...total, waited_seconds: Math.round((Date.now() - started) / 1000) };
+  } finally {
+    importing.delete(key);
+  }
 });
+const importing = new Set();
 
 tool('results_import', 'Fallback import from the current testing tool: its results CSV (one row per participant) and, optionally, one video file per participant. Rows become sessions P1, P2… The tool\'s participant ids stay in a private mapping file; cell values are never returned. Only use for participants who consented in that tool to this research use.', {
   folder: folderArg, slug: slugArg, csv_path: z.string(), participant_column: z.string().describe('Column with the tool\'s participant or session id'),

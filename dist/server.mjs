@@ -28892,8 +28892,8 @@ function readJson(f, fallback) {
   const text = fs.readFileSync(f, "utf8");
   try {
     return JSON.parse(text);
-  } catch (e) {
-    throw new Error(`${f} is damaged (not valid JSON: ${e.message}). Restore it from a backup (or its .bak copy, if there is one), or remove it and redo that step.`);
+  } catch {
+    throw new Error(`${f} is damaged (not valid JSON). Restore it from a backup (or its .bak copy, if there is one), or remove it and redo that step.`);
   }
 }
 function writeJson(f, data) {
@@ -28918,7 +28918,7 @@ function listSessions(root2, slug) {
 function hasConsent(root2, slug, participant) {
   const f = path.join(studyDir(root2, slug), "consent", `${participant}.json`);
   if (!fs.existsSync(f)) return false;
-  const c = JSON.parse(fs.readFileSync(f, "utf8"));
+  const c = readJson(f);
   return c.agreed === true && !c.withdrawn_at;
 }
 var GITIGNORE = `# Proofloop: never commit participant data, consent records or recordings.
@@ -29909,7 +29909,7 @@ var WEB = { "runner/index.html": `<!doctype html>
   window.addEventListener('unhandledrejection', (e) => send({ type: 'error', message: String((e.reason && e.reason.message) || 'unhandled rejection') }));
   send({ type: 'navigate', route: route() });
 })();
-`, "runner/runner.css": ':root {\n  --bg: #f7f7f5; --panel: #ffffff; --text: #1d1d1b; --muted: #55554f; --line: #d9d9d3;\n  --field: #767670; --accent: #0b57d0; --accent-text: #ffffff; --danger: #b3261e; --ok: #146c2e; --focus: #0b57d0;\n  font: 16px/1.5 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;\n}\n@media (prefers-color-scheme: dark) {\n  :root { --bg: #151514; --panel: #1f1f1d; --text: #ecece8; --muted: #b5b5ad; --line: #3a3a36; --field: #8a8a84; --accent: #8ab4f8; --accent-text: #0b1d3a; --danger: #f2b8b5; --ok: #8fd19e; --focus: #8ab4f8; }\n}\n* { box-sizing: border-box; }\nbody { margin: 0; background: var(--bg); color: var(--text); min-height: 100vh; display: flex; flex-direction: column; }\n.skip { position: absolute; left: -999px; } .skip:focus { left: 8px; top: 8px; background: var(--panel); padding: 8px; z-index: 9; }\n.bar { display: flex; gap: 16px; align-items: center; padding: 10px 16px; border-bottom: 1px solid var(--line); background: var(--panel); }\n.brand { font-weight: 600; flex: 1; }\n.rec { color: var(--danger); font-weight: 600; display: inline-flex; gap: 6px; align-items: center; }\n.dot { width: 10px; height: 10px; border-radius: 50%; background: var(--danger); }\n@media (prefers-reduced-motion: no-preference) { .dot { animation: pulse 1.6s infinite; } @keyframes pulse { 50% { opacity: .35; } } }\n.progress { color: var(--muted); font-size: 14px; }\nmain { flex: 1; display: flex; outline: none; }\n.panel { max-width: 640px; margin: 32px auto; padding: 24px; background: var(--panel); border: 1px solid var(--line); border-radius: 12px; width: calc(100% - 32px); }\nh1 { font-size: 24px; line-height: 1.3; margin: 0 0 12px; }\nh2 { font-size: 18px; margin: 0 0 8px; }\np, li { max-width: 62ch; }\n.muted { color: var(--muted); }\n.consent { max-height: 40vh; overflow: auto; border: 1px solid var(--line); padding: 12px 16px; border-radius: 8px; background: var(--bg); }\n.actions { display: flex; gap: 12px; flex-wrap: wrap; margin-top: 20px; }\nbutton, .btn { font: inherit; padding: 10px 18px; border-radius: 8px; border: 1px solid var(--line); background: var(--panel); color: var(--text); cursor: pointer; min-height: 44px; }\nbutton.primary { background: var(--accent); color: var(--accent-text); border-color: var(--accent); font-weight: 600; }\nbutton:disabled { opacity: .5; cursor: not-allowed; }\n:focus-visible { outline: 3px solid var(--focus); outline-offset: 2px; }\nlabel.check { display: flex; gap: 10px; align-items: flex-start; margin-top: 16px; }\nlabel.check input { width: 22px; height: 22px; margin-top: 2px; }\n.scale { display: flex; gap: 6px; flex-wrap: wrap; border: 0; padding: 0; margin: 12px 0; }\n.scale label { display: flex; flex-direction: column; align-items: center; gap: 4px; min-width: 44px; }\n.scale-ends { display: flex; justify-content: space-between; color: var(--muted); font-size: 14px; max-width: 420px; }\ntextarea { width: 100%; min-height: 96px; font: inherit; padding: 8px; border-radius: 8px; border: 1px solid var(--field); background: var(--bg); color: var(--text); }\n.check-row { display: flex; gap: 10px; align-items: center; margin: 8px 0; }\n.check-row .state { font-weight: 600; } .ok { color: var(--ok); } .bad { color: var(--danger); }\n.task-layout { display: grid; grid-template-columns: 320px 1fr; width: 100%; min-height: 0; }\n.task-panel { padding: 20px; border-right: 1px solid var(--line); background: var(--panel); overflow: auto; }\n.task-panel .instruction { font-size: 18px; font-weight: 600; }\n.frame-wrap { position: relative; min-height: 70vh; }\n.frame-wrap iframe { position: absolute; inset: 0; width: 100%; height: 100%; border: 0; background: #fff; }\n.meter { height: 8px; background: var(--line); border-radius: 4px; overflow: hidden; width: 200px; }\n.meter > span { display: block; height: 100%; background: var(--ok); width: 0; }\n.status { position: fixed; bottom: 12px; left: 50%; transform: translateX(-50%); background: var(--panel); border: 1px solid var(--line); padding: 6px 12px; border-radius: 8px; font-size: 14px; }\n.status:empty { display: none; }\n@media (max-width: 800px) { .task-layout { grid-template-columns: 1fr; grid-template-rows: auto 70vh; } .task-panel { border-right: 0; border-bottom: 1px solid var(--line); } }\n.vh { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }\n.err { display: block; color: var(--danger); font-weight: 600; font-size: 14px; }\nfieldset[aria-invalid="true"] { outline: 2px solid var(--danger); outline-offset: 4px; border-radius: 4px; }\n#time-warn { margin-top: 16px; padding: 12px; border: 2px solid var(--accent); border-radius: 8px; }\n', "runner/runner.js": `/* Proofloop participant runner (FR-PLG-007, FR-PLG-016 moderated mode).
+`, "runner/runner.css": ':root {\n  --bg: #f7f7f5; --panel: #ffffff; --text: #1d1d1b; --muted: #55554f; --line: #d9d9d3;\n  --field: #767670; --accent: #0b57d0; --accent-text: #ffffff; --danger: #b3261e; --ok: #146c2e; --focus: #0b57d0;\n  font: 16px/1.5 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;\n}\n@media (prefers-color-scheme: dark) {\n  :root { --bg: #151514; --panel: #1f1f1d; --text: #ecece8; --muted: #b5b5ad; --line: #3a3a36; --field: #8a8a84; --accent: #8ab4f8; --accent-text: #0b1d3a; --danger: #f2b8b5; --ok: #8fd19e; --focus: #8ab4f8; }\n}\n* { box-sizing: border-box; }\nbody { margin: 0; background: var(--bg); color: var(--text); min-height: 100vh; display: flex; flex-direction: column; }\n.skip { position: absolute; left: -999px; } .skip:focus { left: 8px; top: 8px; background: var(--panel); padding: 8px; z-index: 9; }\n.bar { display: flex; gap: 16px; align-items: center; padding: 10px 16px; border-bottom: 1px solid var(--line); background: var(--panel); }\n.brand { font-weight: 600; flex: 1; }\n.rec { color: var(--danger); font-weight: 600; display: inline-flex; gap: 6px; align-items: center; }\n.dot { width: 10px; height: 10px; border-radius: 50%; background: var(--danger); }\n@media (prefers-reduced-motion: no-preference) { .dot { animation: pulse 1.6s infinite; } @keyframes pulse { 50% { opacity: .35; } } }\n.progress { color: var(--muted); font-size: 14px; }\nmain { flex: 1; display: flex; outline: none; }\n.panel { max-width: 640px; margin: 32px auto; padding: 24px; background: var(--panel); border: 1px solid var(--line); border-radius: 12px; width: calc(100% - 32px); }\nh1 { font-size: 24px; line-height: 1.3; margin: 0 0 12px; }\nh2 { font-size: 18px; margin: 0 0 8px; }\np, li { max-width: 62ch; }\n.muted { color: var(--muted); }\n.consent { max-height: 40vh; overflow: auto; border: 1px solid var(--line); padding: 12px 16px; border-radius: 8px; background: var(--bg); }\n.actions { display: flex; gap: 12px; flex-wrap: wrap; margin-top: 20px; }\nbutton, .btn { font: inherit; padding: 10px 18px; border-radius: 8px; border: 1px solid var(--line); background: var(--panel); color: var(--text); cursor: pointer; min-height: 44px; }\nbutton.primary { background: var(--accent); color: var(--accent-text); border-color: var(--accent); font-weight: 600; }\nbutton:disabled { opacity: .5; cursor: not-allowed; }\n:focus-visible { outline: 3px solid var(--focus); outline-offset: 2px; }\nlabel.check { display: flex; gap: 10px; align-items: flex-start; margin-top: 16px; }\nlabel.check input { width: 22px; height: 22px; margin-top: 2px; }\n.scale { display: flex; gap: 6px; flex-wrap: wrap; border: 0; padding: 0; margin: 12px 0; }\n.scale label { display: flex; flex-direction: column; align-items: center; gap: 4px; min-width: 44px; }\n.scale-ends { display: flex; justify-content: space-between; color: var(--muted); font-size: 14px; max-width: 420px; }\ntextarea { width: 100%; min-height: 96px; font: inherit; padding: 8px; border-radius: 8px; border: 1px solid var(--field); background: var(--bg); color: var(--text); }\n.name-field { margin-top: 16px; }\n.name-field input { width: 100%; max-width: 360px; margin-top: 4px; font: inherit; padding: 8px; border-radius: 8px; border: 1px solid var(--field); background: var(--bg); color: var(--text); }\n.check-row { display: flex; gap: 10px; align-items: center; margin: 8px 0; }\n.check-row .state { font-weight: 600; } .ok { color: var(--ok); } .bad { color: var(--danger); }\n.task-layout { display: grid; grid-template-columns: 320px 1fr; width: 100%; min-height: 0; }\n.task-panel { padding: 20px; border-right: 1px solid var(--line); background: var(--panel); overflow: auto; }\n.task-panel .instruction { font-size: 18px; font-weight: 600; }\n.frame-wrap { position: relative; min-height: 70vh; }\n.frame-wrap iframe { position: absolute; inset: 0; width: 100%; height: 100%; border: 0; background: #fff; }\n.meter { height: 8px; background: var(--line); border-radius: 4px; overflow: hidden; width: 200px; }\n.meter > span { display: block; height: 100%; background: var(--ok); width: 0; }\n.status { position: fixed; bottom: 12px; left: 50%; transform: translateX(-50%); background: var(--panel); border: 1px solid var(--line); padding: 6px 12px; border-radius: 8px; font-size: 14px; }\n.status:empty { display: none; }\n@media (max-width: 800px) { .task-layout { grid-template-columns: 1fr; grid-template-rows: auto 70vh; } .task-panel { border-right: 0; border-bottom: 1px solid var(--line); } }\n.vh { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }\n.err { display: block; color: var(--danger); font-weight: 600; font-size: 14px; }\nfieldset[aria-invalid="true"] { outline: 2px solid var(--danger); outline-offset: 4px; border-radius: 4px; }\n#time-warn { margin-top: 16px; padding: 12px; border: 2px solid var(--accent); border-radius: 8px; }\n', "runner/runner.js": `/* Proofloop participant runner (FR-PLG-007, FR-PLG-016 moderated mode).
  * Static page: consent \u2192 device check \u2192 tasks on the prototype \u2192 questions \u2192 done.
  * Recordings are cut into 5-second pieces, queued in IndexedDB, and uploaded
  * through the short relay. Nothing is sent anywhere else. */
@@ -29941,9 +29941,9 @@ var WEB = { "runner/index.html": `<!doctype html>
 
   // ---------- helpers ----------
   const esc = (s) => String(s == null ? '' : s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
-  const say = (msg) => { statusEl.textContent = linkDead && msg !== LINK_DEAD ? LINK_DEAD : msg; };
+  const say = (msg) => { statusEl.textContent = linkDead && msg !== deadMsg ? deadMsg : msg; };
   function render(html, focusSel) {
-    say(linkDead ? LINK_DEAD : ''); // a refused link stays on screen
+    say(linkDead ? deadMsg : ''); // a refused link stays on screen
     main.innerHTML = html;
     const f = focusSel ? main.querySelector(focusSel) : main.querySelector('h1');
     if (f) { f.setAttribute('tabindex', '-1'); f.focus(); }
@@ -29991,8 +29991,19 @@ var WEB = { "runner/index.html": `<!doctype html>
   let pumping = false;
   let backoff = 1000;
   // The relay refused the link itself (expired or not valid): retrying can't help.
-  const LINK_DEAD = 'This link has expired or is no longer valid, so your session can\\'t be sent. What you did is saved on this device. Please contact the researcher who sent you the link.';
+  let deadMsg = 'This link has expired or is no longer valid, so your session can\\'t be sent. What you did is saved on this device. Please contact the researcher who sent you the link.';
+  const IN_USE = 'This link is already being used on another device, and it only works on one. Please carry on there, or contact the researcher who sent you the link.';
   let linkDead = false;
+  // One device per link (FR-PLG-008): a random id kept on this device, so a reload carries on.
+  // If the browser blocks storage there is no id, and the link isn't bound.
+  // Kept per link (not across studies) and removed when the session is sent.
+  const deviceKey = 'proofloop-device-' + token.slice(-16);
+  let deviceId = null;
+  try {
+    deviceId = localStorage.getItem(deviceKey);
+    if (!/^[A-Za-z0-9-]{8,64}$/.test(deviceId || '')) { deviceId = (window.crypto && crypto.randomUUID ? crypto.randomUUID() : Date.now() + '-' + String(Math.random()).slice(2, 12)).replace(/[^A-Za-z0-9-]/g, '').slice(0, 64); localStorage.setItem(deviceKey, deviceId); }
+  } catch (e) { deviceId = null; }
+  const claimLink = () => { if (deviceId) enqueue('claim-' + deviceId + '.json', new Blob(['{}'], { type: 'application/json' })); };
   async function pump() {
     if (pumping || !S.relay || linkDead) return;
     pumping = true;
@@ -30001,10 +30012,11 @@ var WEB = { "runner/index.html": `<!doctype html>
         const item = await nextPending();
         if (!item) break;
         try {
-          const r = await fetch(S.relay + '/upload-url', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ token: token, name: item.name, size: item.blob.size }) });
+          const r = await fetch(S.relay + '/upload-url', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ token: token, name: item.name, size: item.blob.size, device: deviceId || undefined }) });
           // 409: already received (or the session is finished). 400: this piece can never be accepted.
           if (r.status === 409 || r.status === 400) { await removePending(item.name); continue; }
-          if (r.status === 401 || r.status === 403) { linkDead = true; say(LINK_DEAD); break; }
+          if (r.status === 423) { deadMsg = IN_USE; linkDead = true; say(deadMsg); break; }
+          if (r.status === 401 || r.status === 403) { linkDead = true; say(deadMsg); break; }
           if (!r.ok) throw new Error('relay ' + r.status);
           const { url } = await r.json();
           const put = await fetch(url, { method: 'PUT', body: item.blob, headers: { 'content-type': item.blob.type || 'application/octet-stream' } });
@@ -30120,10 +30132,12 @@ var WEB = { "runner/index.html": `<!doctype html>
     render('<section class="panel"><h1>' + esc(S.name) + '</h1><p>Your researcher will guide you on the call. Keep this page open and use the design here when they ask you to.</p>' +
       '<p class="muted">This page notes where you click on the design. It does not record your screen, camera or voice; the call recording is covered by the consent you gave.</p>' +
       '<div class="actions"><button class="primary" id="go">I\\'m ready</button></div></section>');
-    document.getElementById('go').onclick = () => { logEvent('session_start', { mode: 'moderated' }); next(); };
+    document.getElementById('go').onclick = () => { claimLink(); logEvent('session_start', { mode: 'moderated' }); next(); };
   }
   function consent() {
     render('<section class="panel"><h1>Before you start</h1><h2 id="consent-h">What you\\'re agreeing to</h2><div class="consent" role="region" tabindex="0" aria-labelledby="consent-h">' + S.consentHtml + '</div>' +
+      '<p class="name-field"><label for="pname">Your name (optional)</label><br><input id="pname" type="text" autocomplete="name" maxlength="100"></p>' +
+      '<label class="check"><input type="checkbox" id="keep-name"> <span>You may keep my name with my session. It is used only to find and remove my name from what I say before anything is analysed. If this is not ticked, my name isn\\'t sent, a made-up name is recorded instead, and my name can\\'t be removed if I say it aloud.</span></label>' +
       '<label class="check"><input type="checkbox" id="agree"> <span>I\\'ve read the information above. I agree to take part and to have my voice and this tab recorded.</span></label>' +
       '<p class="muted" id="agree-hint">Tick the box to continue.</p>' +
       '<div class="actions"><button class="primary" id="go" disabled aria-describedby="agree-hint">Continue</button><button id="no">I don\\'t want to take part</button></div></section>');
@@ -30131,8 +30145,13 @@ var WEB = { "runner/index.html": `<!doctype html>
     const go = document.getElementById('go');
     agree.onchange = () => { go.disabled = !agree.checked; };
     go.onclick = () => {
-      state.consent = { agreed: true, version: S.consentVersion, at: new Date().toISOString(), mode: 'self' };
+      // The name leaves this device only if the participant ticked "keep my name".
+      const name = document.getElementById('pname').value.trim().slice(0, 100);
+      const kept = !!name && document.getElementById('keep-name').checked;
+      state.consent = Object.assign({ agreed: true, version: S.consentVersion, at: new Date().toISOString(), mode: 'self', name_kept: kept }, kept ? { name: name } : {});
+      claimLink();
       enqueue('meta.json', new Blob([JSON.stringify({ consent: state.consent, userAgent: navigator.userAgent, screen: [screen.width, screen.height], session_start: sessionStart })], { type: 'application/json' }));
+      delete state.consent.name; // sent once; not kept in the page's saved progress
       next();
     };
     document.getElementById('no').onclick = () => render('<section class="panel"><h1>No problem</h1><p>Nothing has been recorded. You can close this page.</p></section>');
@@ -30298,16 +30317,16 @@ var WEB = { "runner/index.html": `<!doctype html>
     render('<section class="panel"><h1>Thank you</h1><p id="up" role="status">Sending your session. Please keep this page open.</p></section>');
     progressEl.textContent = '';
     const poll = async () => {
-      if (linkDead) { document.getElementById('up').textContent = LINK_DEAD; return; }
+      if (linkDead) { document.getElementById('up').textContent = deadMsg; return; }
       const left = await countPending();
       if (left > 0) { document.getElementById('up').textContent = 'Sending your session (' + left + ' parts left). Please keep this page open.'; await pump(); return setTimeout(poll, 1500); }
       enqueue('done.json', new Blob([JSON.stringify({ finished_at: new Date().toISOString() })], { type: 'application/json' }));
       await pump();
       // Only say it's sent once it really is; keep the saved state otherwise.
-      if (linkDead) { document.getElementById('up').textContent = LINK_DEAD; return; }
+      if (linkDead) { document.getElementById('up').textContent = deadMsg; return; }
       if (await countPending()) return setTimeout(poll, 1500);
       document.getElementById('up').textContent = 'All done. Your session has been sent. You can close this page.';
-      try { localStorage.removeItem(storeKey); } catch (e) { /* ignore */ }
+      try { localStorage.removeItem(storeKey); localStorage.removeItem(deviceKey); } catch (e) { /* ignore */ }
     };
     poll();
   }
@@ -30323,15 +30342,15 @@ var WEB = { "runner/index.html": `<!doctype html>
     flushEvents(true);
     enqueue('answers.json', new Blob([JSON.stringify({ answers: state.answers, tasks: state.tasks, device: state.device, interrupted: true })], { type: 'application/json' }));
     const poll = async () => {
-      if (linkDead) { document.getElementById('up').textContent = LINK_DEAD; return; }
+      if (linkDead) { document.getElementById('up').textContent = deadMsg; return; }
       const left = await countPending();
       if (left > 0) { await pump(); return setTimeout(poll, 1500); }
       enqueue('done.json', new Blob([JSON.stringify({ finished_at: new Date().toISOString(), interrupted: true })], { type: 'application/json' }));
       await pump();
-      if (linkDead) { document.getElementById('up').textContent = LINK_DEAD; return; }
+      if (linkDead) { document.getElementById('up').textContent = deadMsg; return; }
       if (await countPending()) return setTimeout(poll, 1500);
       document.getElementById('up').textContent = 'Sent. You can close this page. If you\\'d like to try again, please contact the researcher who sent you the link.';
-      try { localStorage.removeItem(storeKey); } catch (e) { /* ignore */ }
+      try { localStorage.removeItem(storeKey); localStorage.removeItem(deviceKey); } catch (e) { /* ignore */ }
     };
     poll();
   }
@@ -30993,6 +31012,8 @@ async function call(relayUrl, adminToken, method, p, query) {
 }
 var ImportError = class extends Error {
 };
+var FIRST = ["Alex", "Sam", "Jordan", "Taylor", "Casey", "Riley", "Morgan", "Jamie", "Quinn", "Avery", "Charlie", "Drew", "Emery", "Harper", "Kai", "Logan", "Parker", "Reese", "Rowan", "Sage"];
+var pseudonym = () => `${FIRST[crypto4.randomInt(FIRST.length)]} ${String.fromCharCode(65 + crypto4.randomInt(26))}.`;
 function parseUpload(stage, name) {
   let j;
   try {
@@ -31009,7 +31030,7 @@ async function importFromRelay({ root: root2, slug, relayUrl, adminToken, includ
   const byP = /* @__PURE__ */ new Map();
   for (const o of objects) {
     const [, p, name] = o.key.split("/");
-    if (!/^P\d{1,3}$/.test(p ?? "") || !/^(chunk-(screen|mic)-\d{6}\.webm|events-\d{4}\.json|meta\.json|answers\.json|done\.json)$/.test(name ?? "")) continue;
+    if (!/^P\d{1,3}$/.test(p ?? "") || !/^(chunk-(screen|mic)-\d{6}\.webm|events-\d{4}\.json|meta\.json|answers\.json|done\.json|claim-[A-Za-z0-9-]{8,64}\.json)$/.test(name ?? "")) continue;
     if (!byP.has(p)) byP.set(p, []);
     byP.get(p).push({ ...o, name });
   }
@@ -31093,7 +31114,8 @@ async function importFromRelay({ root: root2, slug, relayUrl, adminToken, includ
       writeJson(path4.join(dir, studioRec ? "runner-import.json" : "recording.json"), rec);
       if (meta?.consent?.agreed === true) {
         const cf = path4.join(studyDir(root2, slug), "consent", `${p}.json`);
-        if (!fs4.existsSync(cf)) writeJson(cf, { participant: p, agreed: true, version: meta.consent.version, at: meta.consent.at, method: "runner-checkbox", recorded_by: "participant" });
+        const kept = meta.consent.name_kept === true && typeof meta.consent.name === "string" && meta.consent.name.trim() ? meta.consent.name.trim().slice(0, 100) : null;
+        if (!fs4.existsSync(cf)) writeJson(cf, { participant: p, agreed: true, version: meta.consent.version, at: meta.consent.at, method: "runner-checkbox", recorded_by: "participant", name: kept, name_kept: !!kept, ...kept ? {} : { pseudonym: pseudonym() } });
       }
       if (!keepOnRelay) {
         for (const o of objs) {
@@ -31127,8 +31149,14 @@ async function importFromRelay({ root: root2, slug, relayUrl, adminToken, includ
   for (const x of report.imported) delete seen.participants[x.participant];
   writeJson(seenF, seen);
   report.retention_hours = limitH;
-  appendLog(root2, slug, { skill: "import-sessions", source: "relay", lost: report.lost, imported: report.imported.map((x) => x.participant), deleted_from_relay: report.deleted, warnings: report.warnings });
+  if (report.imported.length || report.lost.length || report.deleted || report.warnings.length) appendLog(root2, slug, { skill: "import-sessions", source: "relay", lost: report.lost, imported: report.imported.map((x) => x.participant), deleted_from_relay: report.deleted, warnings: report.warnings });
   return report;
+}
+async function releaseClaims({ relayUrl, adminToken, slug, participants }) {
+  const { objects } = await call(relayUrl, adminToken, "GET", "/list", { study: slug });
+  const gone = objects.filter((o) => participants.some((p) => new RegExp(`^${slug}/${p}/claim-[A-Za-z0-9-]+\\.json$`).test(o.key)));
+  for (const o of gone) await call(relayUrl, adminToken, "DELETE", "/object", { study: slug, key: o.key });
+  return [...new Set(gone.map((o) => o.key.split("/")[1]))];
 }
 function newSecret() {
   return crypto4.randomBytes(32).toString("base64url");
@@ -32861,16 +32889,34 @@ Each "##" section below becomes a marker you can select in the Studio.
 };
 
 // src/server.mjs
-var VERSION = "0.2.4";
+var VERSION = "0.3.0";
 var server = new McpServer({ name: "proofloop", version: VERSION });
 var ok = (data) => ({ content: [{ type: "text", text: typeof data === "string" ? data : JSON.stringify(data, null, 2) }] });
-var fail = (msg) => ({ isError: true, content: [{ type: "text", text: msg }] });
+var CODES = [
+  [/No research folder/, "NO_RESEARCH_FOLDER", "Run the research-setup skill (setup_init) first."],
+  [/No consent record/, "CONSENT_REQUIRED", "Record consent first: consent_record for moderated sessions; unmoderated consent comes from the participant page."],
+  [/is damaged \(not valid JSON/, "FILE_DAMAGED", "Restore the file, or redo the step that writes it."],
+  [/hasn't been prepared yet/, "NOT_PREPARED", "Run session_prepare for this participant."],
+  [/^Missing file:/, "MISSING_FILE", "An earlier step hasn't run yet for this study or session."],
+  [/not marked the board done|board is not marked done/, "BOARD_NOT_DONE", "Ask the researcher to finish the board (board_open) and mark it done."],
+  [/^Study ".*" not found/, "STUDY_NOT_FOUND", "Check the study name, or create it with study_create."],
+  [/^Fix blocking study issues|^study\.yaml has errors/, "LINT_BLOCKING", "Run study_validate and fix the listed issues."],
+  [/relay secrets|relay URL is not pinned|spec\.relay\.url/, "RELAY_NOT_SET_UP", "Deploy the relay and run setup_init with relay_url."],
+  [/^relay [A-Z]+ \/\S+: (401|403)/, "RELAY_UNAUTHORISED", "The relay refused the admin token. Check the relay was deployed with the token from this research folder's secrets file."],
+  [/^relay [A-Z]+ \/|fetch failed|aborted due to timeout/, "RELAY_UNREACHABLE", "The relay didn't answer properly. Check it is running and reachable, then try again."],
+  [/already running/, "BUSY", "Wait for the other import to finish."],
+  [/Every insight was rejected/, "CITATION_UNVERIFIED", "Fix each insight against the board and resubmit."]
+];
+var fail = (e) => {
+  const [, code, hint] = CODES.find(([re]) => re.test(e.message)) ?? [null, "FAILED", null];
+  return { isError: true, content: [{ type: "text", text: JSON.stringify({ ok: false, error: { code, message: e.message, hint } }) }] };
+};
 function tool(name, description, schema, fn) {
-  server.registerTool(name, { description, inputSchema: schema }, async (args) => {
+  server.registerTool(name, { description, inputSchema: schema }, async (args, extra) => {
     try {
-      return ok(await fn(args));
+      return ok(await fn(args, extra));
     } catch (e) {
-      return fail(e.message);
+      return fail(e);
     }
   });
 }
@@ -32925,6 +32971,7 @@ async function localServer(r) {
 var slugArg = external_exports.string().regex(/^[a-z0-9-]+$/).describe("Study folder name, e.g. savings-onboarding-v1");
 var pArg = external_exports.string().regex(/^P\d{1,3}$/).describe("Participant id, e.g. P1");
 var folderArg = external_exports.string().optional().describe("Research folder path; defaults to ./research found from the working directory");
+var backupNote = (cfg) => cfg?.location === "laptop" && !cfg.backup ? "not confirmed: recordings live only in this laptop folder, so losing the laptop loses them. Ask the user whether it is backed up (Time Machine or a company backup) and run setup_init with backup_confirmed." : null;
 function upgradeChecks(r) {
   const out = {};
   const stale = [];
@@ -32951,7 +32998,8 @@ tool("setup_check", "Check prerequisites for the Research Copilot: FFmpeg, local
     whisper_model: cfg?.whisper_model ? fs10.existsSync(cfg.whisper_model) ? "found" : `not found at ${cfg.whisper_model}` : "not configured",
     research_folder: r ?? "not set up",
     config: cfg,
-    relay_secrets: r && fs10.existsSync(secretsPath(r)) ? "present (stored outside the project folder)" : "none"
+    relay_secrets: r && fs10.existsSync(secretsPath(r)) ? "present (stored outside the project folder)" : "none",
+    backup: backupNote(cfg) ?? (cfg?.backup ? `confirmed by ${cfg.backup.confirmed_by} on ${cfg.backup.at.slice(0, 10)}` : cfg ? "not needed (company drive folder)" : "not set up")
   };
   if (r) {
     const gi = path10.join(r, ".gitignore");
@@ -32970,12 +33018,14 @@ tool("setup_init", "Create and configure the research folder. Recordings stay in
   runner_base_url: external_exports.string().url().optional().describe("Where participant pages are hosted, e.g. https://research.example.com/"),
   whisper_model: external_exports.string().optional().describe("Path to a whisper.cpp model file, e.g. ~/models/ggml-large-v3-turbo.bin"),
   user_name: external_exports.string().describe("Name of the researcher, recorded in logs and decisions"),
-  model_account: external_exports.enum(["claude-enterprise", "claude-team", "api-bedrock", "api-vertex", "api-anthropic", "cursor"]).optional().describe("The organisation's approved model account in use: Claude Enterprise or Team plan, Claude API via Bedrock, Vertex or Anthropic, or Cursor with an approved Claude model")
+  model_account: external_exports.enum(["claude-enterprise", "claude-team", "api-bedrock", "api-vertex", "api-anthropic", "cursor"]).optional().describe("The organisation's approved model account in use: Claude Enterprise or Team plan, Claude API via Bedrock, Vertex or Anthropic, or Cursor with an approved Claude model"),
+  backup_confirmed: external_exports.boolean().optional().describe("The user confirmed this laptop folder is backed up (e.g. Time Machine or a company backup). Recordings live only here, so without a backup a lost laptop loses them. Not needed for a company drive folder.")
 }, (a) => {
   const r = path10.resolve(a.path);
   fs10.mkdirSync(path10.join(r, ".proofloop"), { recursive: true });
   const prev = fs10.existsSync(path10.join(r, ".proofloop", "config.json")) ? loadConfig(r) : {};
-  const cfg = { ...prev, version: 1, location: a.location, product_name: a.product_name ?? prev.product_name ?? null, relay_url: a.relay_url ?? prev.relay_url ?? null, runner_base_url: a.runner_base_url ?? prev.runner_base_url ?? null, whisper_model: a.whisper_model ? a.whisper_model.replace(/^~/, os.homedir()) : prev.whisper_model ?? null, model_account: a.model_account ?? prev.model_account ?? null, managed_device_confirmed_by: a.user_name, managed_device_confirmed_at: (/* @__PURE__ */ new Date()).toISOString(), created_by: prev.created_by ?? a.user_name };
+  const backup = a.backup_confirmed === void 0 ? prev.backup ?? null : a.backup_confirmed ? { confirmed_by: a.user_name, at: (/* @__PURE__ */ new Date()).toISOString() } : null;
+  const cfg = { ...prev, version: 1, location: a.location, backup, product_name: a.product_name ?? prev.product_name ?? null, relay_url: a.relay_url ?? prev.relay_url ?? null, runner_base_url: a.runner_base_url ?? prev.runner_base_url ?? null, whisper_model: a.whisper_model ? a.whisper_model.replace(/^~/, os.homedir()) : prev.whisper_model ?? null, model_account: a.model_account ?? prev.model_account ?? null, managed_device_confirmed_by: a.user_name, managed_device_confirmed_at: (/* @__PURE__ */ new Date()).toISOString(), created_by: prev.created_by ?? a.user_name };
   saveConfig(r, cfg);
   for (const [f, want] of [[".gitignore", GITIGNORE], [".ignore", SEARCH_IGNORE]]) {
     const p = path10.join(r, f);
@@ -33030,11 +33080,14 @@ tool("study_create", "Create a study folder from templates: study.yaml, guide.md
     ctxNote = `copied from ${from_study} (${versions.at(-1) ?? "original"})`;
   } else writeText(path10.join(d, "context", "context.md"), contextTemplate(cfg.product_name ?? name));
   appendLog(r, slug, { skill: "plan-study", event: "study_created", mode, context: ctxNote });
-  return { folder: d, files: ["study.yaml", "consent/consent.md", ...mode === "moderated" ? ["guide.md"] : [], "context/context.md"], context: ctxNote };
+  const warnings = backupNote(cfg) ? [`This research folder is not confirmed as backed up: ${backupNote(cfg)}`] : [];
+  return { folder: d, files: ["study.yaml", "consent/consent.md", ...mode === "moderated" ? ["guide.md"] : [], "context/context.md"], context: ctxNote, warnings };
 });
 tool("study_validate", "Validate study.yaml (strict schema with line numbers) and run the research-quality linter: leading wording, UI giveaways in tasks, missing success criteria, research questions without tasks, timing, sample size, consent and privacy.", { folder: folderArg, slug: slugArg }, ({ folder, slug }) => {
   const r = root(folder);
-  const text = fs10.readFileSync(path10.join(studyDir(r, slug), "study.yaml"), "utf8");
+  const sf = path10.join(studyDir(r, slug), "study.yaml");
+  if (!fs10.existsSync(sf)) throw new Error(`Study "${slug}" not found at ${sf}`);
+  const text = fs10.readFileSync(sf, "utf8");
   const res = parseStudy(text);
   if (res.errors) return { valid: false, errors: res.errors };
   const ctxF = path10.join(studyDir(r, slug), "context", "context.md");
@@ -33087,13 +33140,14 @@ ${lint.issues.filter((i) => i.level === "error").map((i) => `${i.where}: ${i.mes
   appendLog(r, slug, { skill: "build-runner", files: res.files.length });
   return { folder: path10.join(studyDir(r, slug), "runner"), files: res.files.map((f) => path10.basename(f)), published_fields: Object.keys(res.public), note: "Only public study fields are in study.js. Moderator names, research questions and storage paths are not published." };
 });
-tool("runner_links", "Create signed, expiring participant links (one per participant id). Share each link only with that participant.", {
+tool("runner_links", "Create signed, expiring participant links (one per participant id). Share each link only with that participant. A link works on the first device that opens it; if a participant has to switch device, create their link again with release_device: true.", {
   folder: folderArg,
   slug: slugArg,
   participants: external_exports.array(pArg).min(1),
   base_url: external_exports.string().url().optional(),
-  days: external_exports.number().int().min(1).max(14).default(7)
-}, ({ folder, slug, participants, base_url, days }) => {
+  days: external_exports.number().int().min(1).max(14).default(7),
+  release_device: external_exports.boolean().default(false).describe("Let these participants' links work on a new device (removes the earlier device's claim on the relay)")
+}, async ({ folder, slug, participants, base_url, days, release_device }) => {
   const r = root(folder);
   const cfg = loadConfig(r);
   const study = loadStudy(r, slug);
@@ -33104,20 +33158,56 @@ tool("runner_links", "Create signed, expiring participant links (one per partici
   const file = path10.join(path10.dirname(secretsPath(r)), `links-${slug}.csv`);
   const prev = fs10.existsSync(file) ? fs10.readFileSync(file, "utf8").trim().split("\n").slice(1).filter((l) => !participants.includes(l.split(",")[0])) : [];
   fs10.writeFileSync(file, ["participant,expires,url", ...prev, ...links.map((l) => `${l.participant},${l.expires ?? ""},${l.url}`)].join("\n") + "\n", { mode: 384 });
-  return { links_file: file, participants, days, note: "Open the file yourself and send each link only to its participant. Links are not shown here because they work as upload passwords." };
+  const released = release_device ? await releaseClaims({ relayUrl: pinnedRelay(r), adminToken: readSecrets(r).admin_token, slug, participants }) : void 0;
+  return { links_file: file, participants, days, ...released ? { released_from_device: released } : {}, note: "Open the file yourself and send each link only to its participant. Links are not shown here because they work as upload passwords." };
 });
-tool("relay_import", "Import finished unmoderated sessions (and moderated-mode click data) from the short relay into the laptop study folder, verify them, and delete them from the relay.", {
+tool("relay_import", "Import finished unmoderated sessions (and moderated-mode click data) from the short relay into the laptop study folder, verify them, and delete them from the relay. With watch_minutes, keeps checking until a session arrives or the time is up (for a participant who is finishing right now).", {
   folder: folderArg,
   slug: slugArg,
-  include_incomplete: external_exports.boolean().default(false)
-}, async ({ folder, slug, include_incomplete }) => {
+  include_incomplete: external_exports.boolean().default(false),
+  watch_minutes: external_exports.number().min(0).max(10).default(0).describe("Keep checking for up to this many minutes until at least one session is imported (0 = check once)"),
+  poll_seconds: external_exports.number().int().min(1).max(300).default(60).describe("How often to check while watching")
+}, async ({ folder, slug, include_incomplete, watch_minutes, poll_seconds }, extra) => {
   const r = root(folder);
-  const cfg = loadConfig(r);
-  const study = loadStudy(r, slug);
-  void cfg;
-  void study;
-  return importFromRelay({ root: r, slug, relayUrl: pinnedRelay(r), adminToken: readSecrets(r).admin_token, includeIncomplete: include_incomplete });
+  loadStudy(r, slug);
+  const key = `${r}:${slug}`;
+  if (importing.has(key)) throw new Error("An import for this study is already running. Wait for it to finish, then try again.");
+  importing.add(key);
+  try {
+    const run2 = () => importFromRelay({ root: r, slug, relayUrl: pinnedRelay(r), adminToken: readSecrets(r).admin_token, includeIncomplete: include_incomplete });
+    const started = Date.now();
+    const until = started + watch_minutes * 6e4;
+    const signal = extra?.signal;
+    const token = extra?._meta?.progressToken;
+    let step = 0;
+    const progress = () => token === void 0 ? null : extra.sendNotification({ method: "notifications/progress", params: { progressToken: token, progress: ++step, message: "Waiting for sessions to finish uploading" } }).catch(() => {
+    });
+    let report = await run2();
+    const total = { ...report, warnings: [...report.warnings], lost: [...report.lost] };
+    while (!report.imported.length && !report.failed.length && !signal?.aborted && Date.now() + poll_seconds * 1e3 <= until) {
+      for (let left = poll_seconds * 1e3; left > 0 && !signal?.aborted; left -= 15e3) {
+        await progress();
+        await new Promise((res) => {
+          const t = setTimeout(res, Math.min(left, 15e3));
+          signal?.addEventListener("abort", () => {
+            clearTimeout(t);
+            res();
+          }, { once: true });
+        });
+      }
+      if (signal?.aborted) break;
+      report = await run2();
+      for (const w of report.warnings) if (!total.warnings.includes(w)) total.warnings.push(w);
+      total.lost.push(...report.lost);
+      total.deleted += report.deleted;
+      Object.assign(total, { imported: report.imported, skipped: report.skipped, failed: report.failed });
+    }
+    return { ...total, waited_seconds: Math.round((Date.now() - started) / 1e3) };
+  } finally {
+    importing.delete(key);
+  }
 });
+var importing = /* @__PURE__ */ new Set();
 tool("results_import", "Fallback import from the current testing tool: its results CSV (one row per participant) and, optionally, one video file per participant. Rows become sessions P1, P2\u2026 The tool's participant ids stay in a private mapping file; cell values are never returned. Only use for participants who consented in that tool to this research use.", {
   folder: folderArg,
   slug: slugArg,

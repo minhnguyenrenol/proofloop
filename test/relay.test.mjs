@@ -90,6 +90,24 @@ test('relay refuses to overwrite an uploaded piece and caps piece numbers', asyn
   } finally { fs.rmSync(dir, { recursive: true, force: true }); }
 });
 
+test('a link works on one device at a time (FR-PLG-008)', async () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'relay-'));
+  try {
+    const relay = createRelay({ store: folderStore({ dir, baseUrl: 'http://127.0.0.1:1' }), secret: SECRET, adminToken: ADMIN });
+    const token = signToken({ study: 's1', p: 'P1', exp: Date.now() + 60000 }, SECRET);
+    const ask = (name, device) => relay({ method: 'POST', path: '/upload-url', body: JSON.stringify({ token, name, size: 2, device }) });
+    const A = 'aaaaaaaa-1111'; const B = 'bbbbbbbb-2222';
+    assert.equal((await ask(`claim-${A}.json`, A)).status, 200);
+    fs.mkdirSync(path.join(dir, 's1', 'P1'), { recursive: true });
+    fs.writeFileSync(path.join(dir, 's1', 'P1', `claim-${A}.json`), '{}');
+    assert.equal((await ask('meta.json', B)).status, 423, 'a second device is refused');
+    assert.equal((await ask(`claim-${B}.json`, B)).status, 423);
+    assert.equal((await ask('meta.json', A)).status, 200, 'the first device carries on, including after a reload');
+    assert.equal((await ask('meta.json', 'bad id!')).status, 400);
+    assert.equal((await ask('meta.json', undefined)).status, 423, 'leaving out the device id once the link is claimed is refused');
+  } finally { fs.rmSync(dir, { recursive: true, force: true }); }
+});
+
 test('local relay: a dropped upload leaves nothing behind, so the retry is accepted', async () => {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'relay-'));
   const r = await startLocalRelay({ dir, port: 0, secret: SECRET, adminToken: ADMIN });

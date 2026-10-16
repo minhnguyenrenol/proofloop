@@ -1,5 +1,18 @@
 # Changelog
 
+## 0.3.0
+
+Closes the remaining R0 spec gaps found when checking 0.2.1 against §8.15.
+
+- **Error codes (Appendix I/M).** Tool errors now come back as `{ ok: false, error: { code, message, hint } }` with stable codes (`NO_RESEARCH_FOLDER`, `CONSENT_REQUIRED`, `FILE_DAMAGED`, `NOT_PREPARED`, `BOARD_NOT_DONE`, `STUDY_NOT_FOUND`, `LINT_BLOCKING`, `RELAY_NOT_SET_UP`, …). Messages are unchanged.
+- **Watch for arriving sessions (FR-PLG-009).** `relay_import` takes `watch_minutes` (up to 10) and keeps checking until a session arrives, sending progress while it waits.
+- **Backup check (FR-PLG-011).** `setup_init` takes `backup_confirmed`; `setup_check` and `study_create` warn while a laptop research folder isn't confirmed as backed up.
+- **One device per link (FR-PLG-008).** A participant link now works on the first device that uses it; a reload on that device carries on, and a second device is told the link is in use. `runner_links` with `release_device: true` lets a participant switch device. Redeploy the relay and rebuild participant pages to turn this on (older pages keep working until someone claims the link).
+- `relay_import` refuses to run twice at once for the same study, stops watching when the client cancels, and keeps one-time warnings from every check.
+- **Participant name at consent.** The consent step asks for the participant's name (optional) and whether it may be kept. If they allow it, it is kept on their consent record and used to redact their name from what they say. If not, it never leaves their browser and the record gets a made-up name instead.
+- **Cursor contract test.** `test/cursor.test.mjs` checks everything Cursor reads (manifest, MCP server start-up, skills, privacy hooks); docs/setup.md has the manual release check.
+- The privacy guard refuses Grep globs that name raw research files.
+
 ## 0.2.4
 
 Robustness fixes and dependency updates from the ECC review.

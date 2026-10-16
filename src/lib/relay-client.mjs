@@ -20,6 +20,9 @@ async function call(relayUrl, adminToken, method, p, query) {
 
 class ImportError extends Error {}
 
+const FIRST = ['Alex', 'Sam', 'Jordan', 'Taylor', 'Casey', 'Riley', 'Morgan', 'Jamie', 'Quinn', 'Avery', 'Charlie', 'Drew', 'Emery', 'Harper', 'Kai', 'Logan', 'Parker', 'Reese', 'Rowan', 'Sage'];
+const pseudonym = () => `${FIRST[crypto.randomInt(FIRST.length)]} ${String.fromCharCode(65 + crypto.randomInt(26))}.`;
+
 // Uploads come from participants' browsers: parse them defensively.
 function parseUpload(stage, name) {
   let j;
@@ -34,7 +37,7 @@ export async function importFromRelay({ root, slug, relayUrl, adminToken, includ
   const byP = new Map();
   for (const o of objects) {
     const [, p, name] = o.key.split('/');
-    if (!/^P\d{1,3}$/.test(p ?? '') || !/^(chunk-(screen|mic)-\d{6}\.webm|events-\d{4}\.json|meta\.json|answers\.json|done\.json)$/.test(name ?? '')) continue;
+    if (!/^P\d{1,3}$/.test(p ?? '') || !/^(chunk-(screen|mic)-\d{6}\.webm|events-\d{4}\.json|meta\.json|answers\.json|done\.json|claim-[A-Za-z0-9-]{8,64}\.json)$/.test(name ?? '')) continue;
     if (!byP.has(p)) byP.set(p, []);
     byP.get(p).push({ ...o, name });
   }
@@ -116,7 +119,10 @@ export async function importFromRelay({ root, slug, relayUrl, adminToken, includ
     // Consent last: only a session that imported cleanly gets a consent record from the runner.
     if (meta?.consent?.agreed === true) {
       const cf = path.join(studyDir(root, slug), 'consent', `${p}.json`);
-      if (!fs.existsSync(cf)) writeJson(cf, { participant: p, agreed: true, version: meta.consent.version, at: meta.consent.at, method: 'runner-checkbox', recorded_by: 'participant' });
+      // The participant's name is kept only if they allowed it (it is then used
+      // to redact it from what they said). Otherwise a made-up name stands in.
+      const kept = meta.consent.name_kept === true && typeof meta.consent.name === 'string' && meta.consent.name.trim() ? meta.consent.name.trim().slice(0, 100) : null;
+      if (!fs.existsSync(cf)) writeJson(cf, { participant: p, agreed: true, version: meta.consent.version, at: meta.consent.at, method: 'runner-checkbox', recorded_by: 'participant', name: kept, name_kept: !!kept, ...(kept ? {} : { pseudonym: pseudonym() }) });
     }
     if (!keepOnRelay) {
       for (const o of objs) { await call(relayUrl, adminToken, 'DELETE', '/object', { study: slug, key: o.key }); report.deleted++; }
@@ -150,8 +156,18 @@ export async function importFromRelay({ root, slug, relayUrl, adminToken, includ
   for (const x of report.imported) delete seen.participants[x.participant];
   writeJson(seenF, seen);
   report.retention_hours = limitH;
-  appendLog(root, slug, { skill: 'import-sessions', source: 'relay', lost: report.lost, imported: report.imported.map((x) => x.participant), deleted_from_relay: report.deleted, warnings: report.warnings });
+  // Logged only when something happened, so a watch that polls quietly doesn't fill the log.
+  if (report.imported.length || report.lost.length || report.deleted || report.warnings.length) appendLog(root, slug, { skill: 'import-sessions', source: 'relay', lost: report.lost, imported: report.imported.map((x) => x.participant), deleted_from_relay: report.deleted, warnings: report.warnings });
   return report;
+}
+
+// Let a participant's link work on a new device (they switched browser or computer):
+// remove the device claim. Their pieces already uploaded stay.
+export async function releaseClaims({ relayUrl, adminToken, slug, participants }) {
+  const { objects } = await call(relayUrl, adminToken, 'GET', '/list', { study: slug });
+  const gone = objects.filter((o) => participants.some((p) => new RegExp(`^${slug}/${p}/claim-[A-Za-z0-9-]+\\.json$`).test(o.key)));
+  for (const o of gone) await call(relayUrl, adminToken, 'DELETE', '/object', { study: slug, key: o.key });
+  return [...new Set(gone.map((o) => o.key.split('/')[1]))];
 }
 
 export function newSecret() {

@@ -25,6 +25,7 @@ Create and configure the research folder. Recordings stay in this folder on a co
 | `whisper_model` | string |  | Path to a whisper.cpp model file, e.g. ~/models/ggml-large-v3-turbo.bin |
 | `user_name` | string | yes | Name of the researcher, recorded in logs and decisions |
 | `model_account` | string: claude-enterprise, claude-team, api-bedrock, api-vertex, api-anthropic, cursor |  | The organisation's approved model account in use: Claude Enterprise or Team plan, Claude API via Bedrock, Vertex or Anthropic, or Cursor with an approved Claude model |
+| `backup_confirmed` | boolean |  | The user confirmed this laptop folder is backed up (e.g. Time Machine or a company backup). Recordings live only here, so without a backup a lost laptop loses them. Not needed for a company drive folder. |
 
 ## study_create
 
@@ -81,7 +82,7 @@ Generate the participant page for an unmoderated (or moderated-mode click captur
 
 ## runner_links
 
-Create signed, expiring participant links (one per participant id). Share each link only with that participant.
+Create signed, expiring participant links (one per participant id). Share each link only with that participant. A link works on the first device that opens it; if a participant has to switch device, create their link again with release_device: true.
 
 | Parameter | Type | Required | Notes |
 |---|---|---|---|
@@ -90,16 +91,19 @@ Create signed, expiring participant links (one per participant id). Share each l
 | `participants` | array | yes |  |
 | `base_url` | string |  |  |
 | `days` | integer |  |  |
+| `release_device` | boolean |  | Let these participants' links work on a new device (removes the earlier device's claim on the relay) |
 
 ## relay_import
 
-Import finished unmoderated sessions (and moderated-mode click data) from the short relay into the laptop study folder, verify them, and delete them from the relay.
+Import finished unmoderated sessions (and moderated-mode click data) from the short relay into the laptop study folder, verify them, and delete them from the relay. With watch_minutes, keeps checking until a session arrives or the time is up (for a participant who is finishing right now).
 
 | Parameter | Type | Required | Notes |
 |---|---|---|---|
 | `folder` | string |  | Research folder path; defaults to ./research found from the working directory |
 | `slug` | string | yes | Study folder name, e.g. savings-onboarding-v1 |
 | `include_incomplete` | boolean |  |  |
+| `watch_minutes` | number |  | Keep checking for up to this many minutes until at least one session is imported (0 = check once) |
+| `poll_seconds` | integer |  | How often to check while watching |
 
 ## results_import
 

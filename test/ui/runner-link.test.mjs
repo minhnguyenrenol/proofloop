@@ -50,14 +50,18 @@ function fakeMedia() {
   };
 }
 
+let runnerBase;
+// The participant page URL for a fresh link (token) for participant p.
+async function linkFor(p) {
+  const r = await call('runner_links', { slug: 'link-v1', participants: [p], base_url: 'http://127.0.0.1/' });
+  const u = fs.readFileSync(r.links_file, 'utf8').trim().split('\n').slice(1).map((l) => l.split(',')).find((l) => l[0] === p)[2];
+  return `${runnerBase}/index.html?t=${encodeURIComponent(new URL(u).searchParams.get('t'))}`;
+}
+
 before(async () => {
   client = new Client({ name: 'link-ui', version: '1' });
   await client.connect(new StdioClientTransport({ command: process.execPath, args: [SERVER], cwd: project, env: { ...process.env, HOME: home } }));
   browser = await chromium.launch({ executablePath: process.env.CHROMIUM_PATH ?? undefined, args: ['--autoplay-policy=no-user-gesture-required'] });
-});
-after(async () => { await browser?.close(); await client?.close(); await relay?.close(); for (const s of servers) s.close(); fs.rmSync(tmp, { recursive: true, force: true }); });
-
-test('a refused link tells the participant to contact the researcher', async () => {
   const relayPort = port();
   const relayUrl = `http://127.0.0.1:${relayPort}`;
   const setup = await call('setup_init', { path: path.join(project, 'research'), location: 'laptop', confirm_managed_device: true, relay_url: relayUrl, user_name: 'UI Test' });
@@ -72,12 +76,13 @@ test('a refused link tells the participant to contact the researcher', async () 
     .replace('Describe a realistic situation that gives the task a reason.', 'You have $5,000 to put away for a year.');
   fs.writeFileSync(path.join(sdir, 'study.yaml'), y);
   await call('runner_build', { slug: 'link-v1' });
-  const lr = await call('runner_links', { slug: 'link-v1', participants: ['P1'], base_url: 'http://127.0.0.1/' });
-  const url = fs.readFileSync(lr.links_file, 'utf8').trim().split('\n').slice(1).map((l) => l.split(','))[0][2];
-  const good = new URL(url).searchParams.get('t');
-  const forged = `${good.split('.')[0]}.${'A'.repeat(43)}`; // valid shape, wrong signature: the relay answers 401
-  const runnerBase = await serve(path.join(sdir, 'runner'), protoPort);
+  runnerBase = await serve(path.join(sdir, 'runner'), protoPort);
+});
+after(async () => { await browser?.close(); await client?.close(); await relay?.close(); for (const s of servers) s.close(); fs.rmSync(tmp, { recursive: true, force: true }); });
 
+test('a refused link tells the participant to contact the researcher', async () => {
+  const good = new URL(await linkFor('P1')).searchParams.get('t');
+  const forged = `${good.split('.')[0]}.${'A'.repeat(43)}`; // valid shape, wrong signature: the relay answers 401
   const page = await (await browser.newContext()).newPage();
   const errors = [];
   page.on('pageerror', (e) => errors.push(e.message));
@@ -97,4 +102,47 @@ test('a refused link tells the participant to contact the researcher', async () 
   assert.equal(await page.getByText(/Connection problem/).count(), 0, 'not shown as a connection problem');
   assert.deepEqual(errors, []);
   await page.context().close();
+});
+
+async function consentOn(page, url, { name, keep }) {
+  await page.addInitScript(fakeMedia);
+  await page.goto(url);
+  await page.getByRole('button', { name: 'Get started' }).click();
+  if (name) await page.getByRole('textbox', { name: 'Your name (optional)' }).fill(name);
+  if (keep) await page.getByRole('checkbox', { name: /You may keep my name/ }).check();
+  await page.getByRole('checkbox', { name: /agree to take part/ }).check();
+  await page.getByRole('button', { name: 'Continue' }).click();
+}
+const relayFile = async (p, name) => {
+  const f = path.join(tmp, 'relay-data', 'link-v1', p, name);
+  for (let i = 0; i < 50 && !fs.existsSync(f); i++) await new Promise((r) => setTimeout(r, 200));
+  return fs.existsSync(f) ? fs.readFileSync(f, 'utf8') : null;
+};
+
+test('the participant name is sent only when they allow it, and a link works on one device', async () => {
+  const p2 = await linkFor('P2');
+  const a = await (await browser.newContext()).newPage();
+  await consentOn(a, p2, { name: 'Priya Sharma', keep: true });
+  const meta = JSON.parse(await relayFile('P2', 'meta.json'));
+  assert.equal(meta.consent.name, 'Priya Sharma');
+  assert.equal(meta.consent.name_kept, true);
+  assert.ok(fs.readdirSync(path.join(tmp, 'relay-data', 'link-v1', 'P2')).some((f) => /^claim-.+\.json$/.test(f)), 'the link is claimed');
+
+  // Same link on a second device (a fresh browser profile).
+  const b = await (await browser.newContext()).newPage();
+  await consentOn(b, p2, {});
+  await b.getByText(/already being used on another device/).first().waitFor({ timeout: 20000 });
+  await b.context().close();
+  await a.context().close();
+  // The researcher lets the participant switch device.
+  const rel = await call('runner_links', { slug: 'link-v1', participants: ['P2'], base_url: 'http://127.0.0.1/', release_device: true });
+  assert.deepEqual(rel.released_from_device, ['P2']);
+  assert.ok(!fs.readdirSync(path.join(tmp, 'relay-data', 'link-v1', 'P2')).some((f) => f.startsWith('claim-')));
+
+  const c = await (await browser.newContext()).newPage();
+  await consentOn(c, await linkFor('P3'), { name: 'Sam Lee', keep: false });
+  const meta3 = await relayFile('P3', 'meta.json');
+  assert.ok(meta3 && !meta3.includes('Sam Lee'), 'the name is not sent without permission');
+  assert.equal(JSON.parse(meta3).consent.name_kept, false);
+  await c.context().close();
 });

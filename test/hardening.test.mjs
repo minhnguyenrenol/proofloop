@@ -191,6 +191,64 @@ test('robustness: CSV blank times and odd ids, quoted study names, errors that s
   await assert.rejects(call('board_summary', { slug: 'csv-odd' }), /board\.json is damaged/);
 });
 
+// ---------- 0.3.0: R0 spec gaps ----------
+async function upload(slug, p, name, text) {
+  const lr = await call('runner_links', { slug, participants: [p], base_url: 'https://research.example.com/' });
+  const url = fs.readFileSync(lr.links_file, 'utf8').trim().split('\n').slice(1).map((l) => l.split(',')).find((l) => l[0] === p)[2];
+  const buf = Buffer.from(text);
+  const r = await fetch(`${RELAY}/upload-url`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ token: new URL(url).searchParams.get('t'), name, size: buf.length }) });
+  assert.equal(r.status, 200, await r.clone().text());
+  assert.equal((await fetch((await r.json()).url, { method: 'PUT', body: buf })).status, 200);
+}
+const errorOf = async (p) => { try { await p; } catch (e) { return JSON.parse(e.message.slice(e.message.indexOf(': ') + 2)); } return assert.fail('expected an error'); };
+
+test('errors carry a stable code, the message and a hint (spec Appendix I/M)', async () => {
+  const e1 = await errorOf(call('study_validate', { folder: path.join(tmp, 'nowhere'), slug: 'x' }));
+  assert.equal(e1.ok, false);
+  assert.equal(e1.error.code, 'NO_RESEARCH_FOLDER');
+  assert.match(e1.error.message, /No research folder/);
+  assert.match(e1.error.hint, /setup/);
+  assert.equal((await errorOf(call('session_prepare', { slug: 'studio-edge', participant: 'P9' }))).error.code, 'CONSENT_REQUIRED');
+  assert.equal((await errorOf(call('board_summary', { slug: 'csv-odd' }))).error.code, 'FILE_DAMAGED');
+  assert.equal((await errorOf(call('observations_submit', { slug: 'csv-odd', participant: 'P1', model: 'm', observations: [] }))).error.code, 'NOT_PREPARED');
+  assert.equal((await errorOf(call('study_validate', { slug: 'no-such-study' }))).error.code, 'STUDY_NOT_FOUND');
+});
+
+test('relay import can wait for a session that is still finishing (FR-PLG-009)', async () => {
+  await call('study_create', { slug: 'watch-v1', name: 'Watch', mode: 'unmoderated' });
+  await upload('watch-v1', 'P1', 'meta.json', JSON.stringify({ consent: { agreed: true, version: '1.0', at: new Date().toISOString() } }));
+  setTimeout(() => upload('watch-v1', 'P1', 'done.json', '{}'), 1500);
+  const imp = await call('relay_import', { slug: 'watch-v1', watch_minutes: 1, poll_seconds: 1 });
+  assert.deepEqual(imp.imported.map((x) => x.participant), ['P1']);
+  assert.ok(imp.waited_seconds >= 1);
+  const quick = await call('relay_import', { slug: 'watch-v1', watch_minutes: 0.05, poll_seconds: 1 });
+  assert.deepEqual(quick.imported, []);
+  assert.ok(quick.waited_seconds >= 2 && quick.waited_seconds <= 5, 'stops when the wait is over');
+});
+
+test('setup asks whether a laptop research folder is backed up (FR-PLG-011)', async () => {
+  assert.match((await call('setup_check', {})).backup, /not confirmed/);
+  assert.match((await call('study_create', { slug: 'backup-v1', name: 'Backup', mode: 'moderated' })).warnings.join(' '), /backed up/);
+  await call('setup_init', { path: research, location: 'laptop', confirm_managed_device: true, user_name: 'Test Researcher', backup_confirmed: true });
+  assert.match((await call('setup_check', {})).backup, /confirmed by Test Researcher/);
+});
+
+test('consent from the participant page keeps the name only if they allow it', async () => {
+  await call('study_create', { slug: 'names-v1', name: 'Names', mode: 'unmoderated' });
+  const meta = (consent) => JSON.stringify({ consent: { agreed: true, version: '1.0', at: new Date().toISOString(), ...consent } });
+  await upload('names-v1', 'P1', 'meta.json', meta({ name: 'Priya Sharma', name_kept: true }));
+  await upload('names-v1', 'P2', 'meta.json', meta({ name_kept: false }));
+  await upload('names-v1', 'P3', 'meta.json', meta({ name: 'Should Not Keep', name_kept: false }));
+  for (const p of ['P1', 'P2', 'P3']) await upload('names-v1', p, 'done.json', '{}');
+  await call('relay_import', { slug: 'names-v1' });
+  const rec = (p) => JSON.parse(fs.readFileSync(path.join(research, 'names-v1', 'consent', `${p}.json`), 'utf8'));
+  assert.equal(rec('P1').name, 'Priya Sharma');
+  assert.equal(rec('P2').name, null);
+  assert.match(rec('P2').pseudonym, /^[A-Z][a-z]+ [A-Z]\.$/, 'a made-up name stands in');
+  assert.equal(rec('P3').name, null, 'a name sent without permission is not kept');
+  assert.ok(!JSON.stringify(rec('P3')).includes('Should Not Keep'));
+});
+
 test('privacy: free-text survey answers are redacted before analysis', async () => {
   await call('study_create', { slug: 'answers-redact', name: 'Answers redaction', mode: 'moderated' });
   await call('consent_record', { slug: 'answers-redact', participant: 'P1', method: 'written', consent_version: '1.0', recorded_by: 'Test Researcher', name: 'Priya Sharma' });

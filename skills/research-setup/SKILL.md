@@ -14,6 +14,7 @@ You are setting up a research workspace for a product team in a regulated organi
    - Where should recordings live: a folder on this **laptop**, or a company **drive** folder (OneDrive, Google Drive, SharePoint) synced to it? Default: `./research` on the laptop.
    - Is this a **company-managed device with full-disk encryption**? If they say no or don't know, stop: customer recordings must not be stored here. Internal-only pilots can continue only if their security team agrees; say so.
    - Will they run **unmoderated** tests? If yes, they need the short relay (see below) and a place to host the participant page.
+   - If the folder is on the **laptop**: is it **backed up** (Time Machine or a company backup)? Recordings live only in this folder, so a lost laptop loses them. Pass the answer as `backup_confirmed`; if it's no, suggest a company drive folder instead, and `setup_check` keeps reminding them.
    - Their name (recorded on decisions).
    - Which **approved model account** they are using: Claude Enterprise or Team plan in Claude Code, the Claude API through Bedrock, Vertex or Anthropic, or Cursor with an approved Claude model under the organisation's data terms. If they aren't sure their account is approved for research data, tell them to check with their security team before analysing customer sessions.
 3. Call `setup_init` with `confirm_managed_device: true` only after the user confirmed it, and pass `model_account`. New studies record it in `study.yaml`.

@@ -59,6 +59,14 @@ RELAY_SECRET=... ADMIN_TOKEN=... ALLOWED_ORIGINS=https://research.example.com \
 
 Run it on an internal server behind HTTPS. It sweeps files older than the retention period every hour.
 
+### Upgrading the relay to 0.3.0
+
+Redeploy the relay (re-run `sam deploy` in `relay/`, or restart `relay/local.mjs`) after upgrading the plugin. 0.3.0 binds each participant link to the first device that uses it: a second device gets "This link is already being used on another device", while a reload on the same device carries on. If a participant genuinely has to switch device (say their browser can't record), run `runner_links` for them again with `release_device: true`. The relay also refuses to replace a piece that has already arrived. Participant pages built by earlier versions keep working, but aren't bound to one device until you rebuild them with `runner_build`.
+
+### The participant's name
+
+The consent step asks for the participant's name (optional) and whether it may be kept. If they tick "keep my name", it travels with their consent through the relay and is stored in their consent record, where it is used only to redact their name from what they say. If they don't, their name never leaves their browser and the consent record gets a made-up name (`pseudonym`) instead; their name then can't be removed if they say it aloud, which the consent step tells them. The choice is sent once: if a participant reloads and changes their mind, the first choice stands, so honour a later request with `cleanup` for that participant.
+
 ## 5. Hosting the participant page
 
 `runner_build` writes a static site to `research/<slug>/runner/`. Host it on a company web host (for example an internal S3 + CloudFront site) at the `runner_base_url` you gave `setup_init`. GitHub Pages is fine for internal tests only if your organisation restricts the site to staff; for customers, use the company host.
@@ -83,7 +91,18 @@ It never sends what people type.
 
 Pass `whisper_model` to `setup_init`. `session_transcribe` then runs whisper.cpp on each track. For unmoderated sessions the microphone track is the participant. For Studio sessions, the call track is the participant and your mic is the moderator.
 
+## Release check in Cursor
+
+`npm test` checks everything Cursor reads (`test/cursor.test.mjs`): the manifest's paths, the MCP server started as `mcp.json` says, the skills and the privacy hooks. Cursor can't be driven automatically, so before each release also do this once by hand and note the result in the release notes:
+
+1. In Cursor, add the plugin from this repository (or as a local plugin) and reload the window.
+2. Ask: "Check my research setup." The agent should run `setup_check` and summarise it.
+3. Ask it to read a raw transcript (`research/<study>/sessions/P1/transcript.json` in a test folder). The privacy hook should block it.
+4. Run a small study end to end with synthetic data: `study_create`, `runner_build`, one participant through the page, `relay_import`, `session_prepare`, then the board and report.
+
 ## Troubleshooting
+
+Tool errors come back as `{ "ok": false, "error": { "code", "message", "hint" } }`. The code is stable, so a skill or script can act on it: `NO_RESEARCH_FOLDER`, `CONSENT_REQUIRED`, `FILE_DAMAGED`, `NOT_PREPARED`, `MISSING_FILE`, `BOARD_NOT_DONE`, `STUDY_NOT_FOUND`, `LINT_BLOCKING`, `RELAY_NOT_SET_UP`, `RELAY_UNAUTHORISED`, `RELAY_UNREACHABLE`, `BUSY`, `CITATION_UNVERIFIED`, or `FAILED` for anything else. Input that doesn't match a tool's schema (a wrong type, an out-of-range number) is rejected by the MCP layer before the tool runs, as plain text rather than this JSON.
 
 | Message | Fix |
 |---|---|
