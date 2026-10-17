@@ -4,6 +4,8 @@ import { ExplainerV2, explainerDuration } from "./ExplainerV2";
 import { HowToV2, howtoDuration } from "./HowToV2";
 import { GuideVideo, GUIDE_DURATION } from "./GuideVideo";
 import { StepScene } from "./StepScene";
+import { Synthesis, synthDuration } from "./Synthesis";
+import { Unmoderated, unmodDuration } from "./Unmoderated";
 import { TitleCard } from "./TitleCard";
 
 export const RemotionRoot: React.FC = () => {
@@ -21,6 +23,22 @@ export const RemotionRoot: React.FC = () => {
         id="HowTo"
         component={HowToV2}
         durationInFrames={howtoDuration(30)}
+        fps={30}
+        width={1920}
+        height={1080}
+      />
+      <Composition
+        id="Unmoderated"
+        component={Unmoderated}
+        durationInFrames={unmodDuration(30)}
+        fps={30}
+        width={1920}
+        height={1080}
+      />
+      <Composition
+        id="Synthesis"
+        component={Synthesis}
+        durationInFrames={synthDuration(30)}
         fps={30}
         width={1920}
         height={1080}

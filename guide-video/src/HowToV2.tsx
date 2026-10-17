@@ -24,14 +24,14 @@ import {
 import { HOWTO, hasVoice, type Line, voSeconds } from "./script";
 import { color, mono, sans, serif } from "./theme";
 
-const INK = "#111110";
-const fill: React.CSSProperties = {
+export const INK = "#111110";
+export const fill: React.CSSProperties = {
   position: "absolute",
   inset: 0,
   overflow: "hidden",
   background: color.paper,
 };
-const panel: React.CSSProperties = {
+export const panel: React.CSSProperties = {
   background: color.sheet,
   border: `3px solid ${color.rule}`,
   borderRadius: 24,
@@ -39,7 +39,7 @@ const panel: React.CSSProperties = {
 };
 
 // Step number and heading shared by every step scene.
-const Head: React.FC<{ n: number; title: string }> = ({ n, title }) => (
+export const Head: React.FC<{ n: number; title: string }> = ({ n, title }) => (
   <div
     className="head"
     style={{
@@ -55,11 +55,11 @@ const Head: React.FC<{ n: number; title: string }> = ({ n, title }) => (
     <h2 style={display(84)}>{title}</h2>
   </div>
 );
-const headIn = (tl: gsap.core.Timeline) =>
+export const headIn = (tl: gsap.core.Timeline) =>
   tl.from(".head", { x: -60, opacity: 0, duration: 0.8 }, 0);
 
 // Typed line: a clip reveal stepped per character, so it reads as typing.
-const typed = (
+export const typed = (
   tl: gsap.core.Timeline,
   sel: string,
   chars: number,
@@ -513,7 +513,7 @@ const Plan: React.FC = () => {
 };
 
 // Audio bars driven by the frame, for the Studio's two tracks.
-const Bars: React.FC<{ seed: string; tint: string }> = ({ seed, tint }) => {
+export const Bars: React.FC<{ seed: string; tint: string }> = ({ seed, tint }) => {
   const f = useCurrentFrame();
   return (
     <div style={{ display: "flex", gap: 6, alignItems: "center", height: 80 }}>

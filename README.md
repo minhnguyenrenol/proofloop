@@ -82,7 +82,7 @@ More in [docs/privacy.md](docs/privacy.md) and [docs/security.md](docs/security.
 
 ## Documentation
 
-- [docs/guide.html](docs/guide.html): **start here**, a step-by-step guide to running one study, with two narrated one-minute videos: [why ProofLoop](docs/proofloop-explainer.mp4) and [how to run your first study](docs/proofloop-howto.mp4). Their source is in [guide-video/](guide-video) (Remotion + GSAP; `npm i`, `node scripts/music.mjs public/music/explainer.wav 59.7 11.2`, `node scripts/music.mjs public/music/howto.wav 65.4 0 7`, then `npx remotion studio` or `npx remotion render Explainer` / `HowTo`).
+- [docs/guide.html](docs/guide.html): **start here**, a step-by-step guide to running one study, with four narrated videos: [why ProofLoop](docs/proofloop-explainer.mp4), [how to run your first study](docs/proofloop-howto.mp4), [how to run an unmoderated test](docs/proofloop-unmoderated.mp4) and [how synthesis works, in detail](docs/proofloop-synthesis.mp4). Their source is in [guide-video/](guide-video) (Remotion + GSAP; `npm i`, `node scripts/music.mjs public/music/explainer.wav 59.7 11.2`, `node scripts/music.mjs public/music/howto.wav 65.4 0 7`, `node scripts/music.mjs public/music/unmoderated.wav 64.5 0 11`, `node scripts/music.mjs public/music/synthesis.wav 74 0 13`, then `npx remotion studio` or `npx remotion render Explainer` / `HowTo` / `Unmoderated` / `Synthesis`).
 - [docs/setup.md](docs/setup.md): setup, relay deployment, hosting the participant page, transcription
 - [docs/privacy.md](docs/privacy.md): data flows, retention, erasure, DPIA notes
 - [docs/security.md](docs/security.md): threat model and controls

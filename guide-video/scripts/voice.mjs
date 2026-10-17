@@ -12,11 +12,14 @@ const voice = process.argv[2] ?? "en-AU-NatashaNeural";
 const rate = process.argv[3] ?? "+4%";
 // The script is TypeScript; pull the id/text pairs out of it without a build step.
 const src = fs.readFileSync(path.join(root, "src/script.ts"), "utf8");
-const lines = [...src.matchAll(/\{ id: "([a-z0-9]+)", text: "((?:[^"\\]|\\.)*)" \}/g)].map((m) => ({ id: m[1], text: m[2].replace(/\\"/g, '"') }));
+const only = (process.env.ONLY ?? "").split(",").filter(Boolean); // e.g. ONLY=u,s regenerates just those prefixes
+const lines = [...src.matchAll(/\{\s*id: "([a-z0-9]+)",\s*text:\s*"((?:[^"\\]|\\.)*)",?\s*\}/g)].map((m) => ({ id: m[1], text: m[2].replace(/\\"/g, '"') }))
+  .filter((l) => !only.length || only.some((p) => l.id.startsWith(p)));
 
 const outDir = path.join(root, "public/vo");
 fs.mkdirSync(outDir, { recursive: true });
-const durations = {};
+const durFile = path.join(root, "src/vo-durations.json");
+const durations = fs.existsSync(durFile) ? JSON.parse(fs.readFileSync(durFile, "utf8")) : {};
 for (const { id, text } of lines) {
   const out = path.join(outDir, `${id}.mp3`);
   const r = spawnSync(process.env.EDGE_TTS ?? "edge-tts", ["--voice", voice, `--rate=${rate}`, "--text", text, "--write-media", out], { encoding: "utf8" });
